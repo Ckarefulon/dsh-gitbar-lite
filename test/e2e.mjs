@@ -33,7 +33,7 @@ import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 
-import { createGit } from '../lib/host/git.js'
+import { GitFailure, createGit } from '../lib/host/git.js'
 import { createRepo } from '../lib/host/repo.js'
 import { createHandlers, createRoute } from '../lib/host/routes.js'
 import { createStore } from '../lib/host/store.js'
@@ -975,6 +975,61 @@ async function main() {
     eq('and the nested file is listed under its repository-relative path', result.body.files.map((file) => file.path), [
       'packages/app/main.js',
     ])
+  }
+
+  // ------------------------------------- S20: a subprocess that refuses to start
+
+  section('S20 the process layer reports a refused spawn as a git failure')
+  {
+    // Read off the live service contract rather than guessed: `spawn` "throws
+    // synchronously when pre-aborted or when argv, cwd, environment, or grace is
+    // invalid before handle creation". A caller that only `await`s the handle
+    // never sees that, so it used to reach the route layer unclassified.
+    const logger = { info: () => {}, warn: () => {}, error: () => {} }
+    const config = readConfig({ stateDir: join(scratch, 'state-20'), timeoutMs: 60000 })
+
+    {
+      const runner = createGit({ logger, subprocess: createFakeSubprocess() }, config)
+      const controller = new AbortController()
+      controller.abort()
+      const failure = await runner.run(['status'], { cwd: scratch, signal: controller.signal }).then(
+        () => undefined,
+        (error) => error,
+      )
+      ok('a command aborted before it starts rejects', failure !== undefined)
+      ok('as a GitFailure rather than a raw throw', failure instanceof GitFailure, failure?.name)
+      ok('and says it was aborted', /aborted/i.test(String(failure?.message ?? '')), failure?.message)
+      eq('with no exit code to report', failure?.exitCode, null)
+    }
+
+    {
+      const refused = { ...createFakeSubprocess(), spawn: () => { throw new Error('uv_spawn ENOENT') } }
+      const runner = createGit({ logger, subprocess: refused }, config)
+      const failure = await runner.run(['status'], { cwd: scratch }).then(() => undefined, (error) => error)
+      ok('a spawn the provider refuses outright is a GitFailure too', failure instanceof GitFailure, failure?.name)
+      ok('and carries the reason the provider gave', /uv_spawn ENOENT/.test(String(failure?.message ?? '')), failure?.message)
+    }
+
+    {
+      // A missing git is a distinct code, because the panel has a distinct
+      // sentence for it and a generic failure would read as a broken repository.
+      const runner = createGit({ logger, subprocess: createFakeSubprocess() }, readConfig({ stateDir: join(scratch, 'state-20'), gitPath: 'definitely-not-this-one' }))
+      const failure = await runner.run(['status'], { cwd: scratch }).then(() => undefined, (error) => error)
+      eq('an unresolvable git is tagged, not generic', failure?.code, ERROR_CODES.NO_GIT)
+    }
+
+    {
+      // The environment is where three of the plugin's safety properties live,
+      // and it is assembled in exactly one place.
+      const seen = []
+      const runner = createGit({ logger, subprocess: createFakeSubprocess({ capture: (entry) => seen.push(entry) }) }, config)
+      await runner.run(['status'], { cwd: scratch })
+      const env = seen.at(-1)?.env ?? {}
+      eq('a credential prompt can never hang the child', env.GIT_TERMINAL_PROMPT, '0')
+      eq('no optional index locks, so the overlapping reads are safe', env.GIT_OPTIONAL_LOCKS, '0')
+      eq('the user git config stays out of the way', env.GIT_CONFIG_COUNT, '0')
+      eq('and the output is parsed in one stable locale', env.LC_ALL, 'C')
+    }
   }
 
   // -------------------------------------------------------------------- wrap-up

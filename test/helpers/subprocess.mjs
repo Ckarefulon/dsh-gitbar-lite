@@ -88,6 +88,19 @@ export function createFakeSubprocess(options = {}) {
       const { argv, cwd, stdio, signal, env } = spec
       options.capture?.({ argv: [...argv], cwd, env })
 
+      // Copied from the shipped contract, which says `spawn` "throws
+      // synchronously when pre-aborted or when argv, cwd, environment, or grace
+      // is invalid before handle creation". The pre-abort case is the one this
+      // double used to get wrong — it started the child and killed it after —
+      // which made `lib/host/git.js` look safe against a throw it never saw.
+      // An invalid `cwd` already throws synchronously out of `node:child_process`.
+      if (signal !== undefined && signal.aborted) {
+        const error = new Error('The operation was aborted')
+        error.name = 'AbortError'
+        error.code = 'ABORT_ERR'
+        throw error
+      }
+
       const [executable, ...args] = argv
       const stdinMode = stdio?.stdin ?? 'ignore'
       const stdoutMode = stdio?.stdout ?? 'ignore'

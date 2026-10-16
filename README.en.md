@@ -189,7 +189,7 @@ are in [`docs/CONTRACT.md`](./docs/CONTRACT.md).
 
 ```sh
 npm test          # unit + real-git e2e + artifact self-check
-npm run test:e2e  # the real-git suite alone (19 sections building their own fixtures, 230 assertions)
+npm run test:e2e  # the real-git suite alone (20 sections building their own fixtures, 241 assertions)
 npm run check     # artifact self-check alone (catches boot-breaking mistakes without restarting DSH)
 npm run test:live # probe a running DSH (not part of npm test; needs the app running)
 ```

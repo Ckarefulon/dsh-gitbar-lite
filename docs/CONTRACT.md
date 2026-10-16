@@ -326,7 +326,7 @@ this package on the next upgrade.
 | state files, the binding key, corruption tolerance, write serialization | `test/store.test.mjs` |
 | the route carrier, single registration under a hostile service order, error classification | `test/index.test.mjs` |
 | every registration identity, the wire literals, the dictionaries, and the hook-free components' rendered trees | `test/client.test.mjs` |
-| the whole host stack against **real git**, mutation by mutation | `test/e2e.mjs`, 230 assertions over 19 sections that build their own fixtures |
+| the whole host stack against **real git**, mutation by mutation | `test/e2e.mjs`, 241 assertions over 20 sections that build their own fixtures |
 | the manifest, the patch layer, the tarball's contents, the two copies of the wire contract, the dictionaries, the workflow | `test/check.mjs` |
 | that the client bundle would not abort the Host boot | `scripts/check-client-bundle.mjs` |
 
@@ -338,11 +338,22 @@ show the index claim rather than assume it.
 
 - **`ctx.subprocess` is doubled in the tests.** The shipped service lives inside
   DSH's own bundle and is not importable from a plugin repository, so
-  `test/helpers/subprocess.mjs` reproduces its documented shapes (the spawn spec,
-  `collected.stdout.readFrom`, `done`) on top of `node:child_process`. It does
-  **not** reproduce the Windows Job containment or the environment scrubbing —
-  those belong to the real service. The first live run in a real DSH is what
-  closes that gap; see `test/live.mjs`.
+  `test/helpers/subprocess.mjs` reproduces its shapes on top of
+  `node:child_process`. Those shapes are not guessed: the live contract was read
+  off a running DSH (Cordis Inspect, host provider `Service`, key `subprocess`)
+  and the double is pinned to it — including the part that is easy to get wrong,
+  that `spawn` **throws synchronously** for an already-aborted signal, or for an
+  argv/cwd/env/grace it rejects, instead of returning a handle. `S20` exists
+  because a caller that only `await`s the handle never sees that throw, and it
+  used to reach the route layer unclassified. What the double still does **not**
+  reproduce: Windows Job containment, the environment scrubbing, spill files
+  (`readFrom`'s `spillPath`), and the `control` duplex.
+- **What the live run established.** The plugin loads into a running DSH and all
+  three right-sidebar seats register and are active — `dsh-gitbar-lite/git` and
+  `dsh-gitbar-lite/trash` (pages) and `dsh-gitbar-lite/diff` (resource) — read
+  off the live client slot tree at `sidebar.right.pane.tab`, next to the shipped
+  occupants. That is evidence about *mounting*; the behaviour claims are the e2e
+  suite's job, and the seam between them is the doubled `ctx.subprocess` above.
 - **No headless-DOM render test.** The panel, the trash and the diff are driven
   by hooks, and the three components with no hooks in them (the row, the
   confirmation, the picker) *are* asserted on their element trees. What is not
