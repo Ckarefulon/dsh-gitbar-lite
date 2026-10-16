@@ -216,6 +216,7 @@ npm run test:live # 探测一个正在运行的 DSH（不在 npm test 里，需�
 | `test/store.test.mjs` | 绑定键归一、绑定/偏好/回收站往返、坏文件容错、并发写不丢更新 |
 | `test/index.test.mjs` | Config 字段与默认值、**路由载体与「只注册一次」**、错误码映射 |
 | `test/client.test.mjs` | 按 manifest 的确切路径加载真实 bundle；三个 tab 类型的 id/kind/guide/keepMounted；每个 slot key 都是注册过的 id；字典与错误码齐全；无 hook 的三个组件按渲染树断言 |
+| `test/seats.test.mjs` | **把每个注册进来的 seat 都渲染一遍**，含隐藏态和无 session 态。这是补盲区的：`client.test.mjs` 从不渲染三个 body，而 body 渲染期抛错就是整个面板变白（真实发生过——一个 `const` 被依赖数组提前引用，ReferenceError 打白了面板，而其余测试全绿） |
 | `test/e2e.mjs` | 真实 git、真实 handler、真实路由层：勾选真的写索引（之后读 `git status` 回来比对）、提交、push 到本地裸远端、推送被拒、舍弃单文件/全部/重命名/暂存删除、冲突拒绝、回收站增删清空、按仓库过滤、扫描深度 |
 | `test/check.mjs` | manifest 指向的文件都存在且进得了 tarball、patch 层只有一行且没有密钥、两份线协议字面量一致、字典与 `locale/*.json` 一致、每个 `t('字面量')` 都能查到、README/workflow 的存在性与内容 |
 | `scripts/check-client-bundle.mjs` | 复刻 client-modules 的判定：`exports["./client"]` 指向的文件是否真的存在 |
