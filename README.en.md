@@ -23,7 +23,9 @@ The column is narrow (300px minimum, and a narrow viewport makes it full-screen)
 | Commit | Commits exactly what is ticked — because ticking wrote the index |
 | Commit and Push | Commits, then pushes. **A failed push never claims the commit failed**: the commit happened, and the panel says "committed `abc1234`, but the push failed" |
 | Context button | **Push** when local commits are unpushed, **Publish** when the branch has no upstream, **Fetch** otherwise |
-| Automatic fetch | Every five minutes while the panel is visible and the repository has a remote (`autoFetchMs`, `0` to disable). Failures are silent — no error banner |
+| Fetch before push | A push runs `git fetch --prune` first, then pushes. **Being behind refuses the push** and says by how many — git never merges on a push, so it would be rejected either way, and knowing before the attempt beats being told after. A failed fetch does not block the push |
+| Automatic fetch | GitHub Desktop's rhythm while the panel is visible and the repository has a remote: an hour by default, each tick re-asking whether to run, the next scheduled from the *completion* of the last, with a random skew so panels do not sync up. The pace is `autoFetchMs` (`0` to disable), and "was it fetched recently" is answered by `FETCH_HEAD`'s mtime — so a fetch in a terminal counts too |
+| Panel regains focus | The file list refreshes when the panel becomes visible again; if a script is configured, it runs and fills the Summary |
 | Discard | One file or all of them; the diff is archived *before* anything is restored, and the confirmation offers "delete for good" |
 | Trash | Its own tab. Every discard keeps a diff, recorded **against the commit it was taken from** (`abc1234 initial commit`) |
 | Diff preview | Double-click a file, or a trash entry, to open a diff tab in the column — **one tab, ever**, re-navigated in place |
@@ -222,7 +224,7 @@ are in [`docs/CONTRACT.md`](./docs/CONTRACT.md).
 
 ```sh
 npm test          # unit + real-git e2e + artifact self-check
-npm run test:e2e  # the real-git suite alone (21 sections building their own fixtures, 263 assertions)
+npm run test:e2e  # the real-git suite alone (22 sections building their own fixtures, 277 assertions)
 npm run check     # artifact self-check alone (catches boot-breaking mistakes without restarting DSH)
 npm run test:live # probe a running DSH (not part of npm test; needs the app running)
 ```

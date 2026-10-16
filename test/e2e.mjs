@@ -854,13 +854,18 @@ async function main() {
     eq('because the commit really did happen', rejected.body.commit.summary, 'will not push')
     eq('and only the push failed', rejected.body.push.ok, false)
     eq('with a rejection code', rejected.body.push.error.code, ERROR_CODES.PUSH_REJECTED)
-    ok('and a sentence that says what to do', /Fetch/.test(rejected.body.push.error.message), rejected.body.push.error)
+    ok('and a sentence that says what to do', /Pull/.test(rejected.body.push.error.message), rejected.body.push.error)
+    // The push fetched first, so the refusal came from knowing the branch was
+    // behind — not from the push being rejected and being told afterwards.
+    eq('and it fetched before deciding', rejected.body.push.fetched, true)
+    ok('and it knows how far behind it is', /落后 1 个/.test(rejected.body.push.error.message), rejected.body.push.error.message)
 
     const ahead = await harness.call(ACTIONS.STATUS, { sessionId: SESSION })
-    // `behind` counts commits the *local* remote-tracking ref knows about, and
-    // nothing has fetched the other clone's commit yet — the count updating on
-    // Fetch is exactly the behaviour worth pinning down.
-    eq('the branch is one ahead, with a stale idea of the remote', [ahead.body.branch.ahead, ahead.body.branch.behind], [1, 0])
+    // `behind` counts commits the *local* remote-tracking ref knows about. The
+    // push already fetched, so the count is current rather than stale — which is
+    // the whole point of fetching before pushing, and worth pinning down: without
+    // it this read 0 and the panel would have offered a push that cannot succeed.
+    eq('the branch is one ahead and one behind, already known', [ahead.body.branch.ahead, ahead.body.branch.behind], [1, 1])
     eq('so the button offers a push', ahead.body.primary, 'push')
 
     const refreshed = await harness.call(ACTIONS.FETCH, { sessionId: SESSION })
