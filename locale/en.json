@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Git Bar (lite)",
+    "description": "A GitHub Desktop-style Git panel: changed files, tick-to-stage, commit, commit and push, discard into a trash, and diff preview."
+  }
+}

@@ -1,0 +1,90 @@
+{
+  "name": "dsh-gitbar-lite",
+  "version": "0.1.0",
+  "description": "A GitHub Desktop-style Git panel for DSH: changed files, tick-to-stage, Summary + Description, Commit and Commit and Push, discard-to-trash, and diff preview, in the built-in right sidebar.",
+  "type": "module",
+  "license": "MIT",
+  "author": "Ckarefulon",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Ckarefulon/dsh-gitbar-lite.git"
+  },
+  "homepage": "https://github.com/Ckarefulon/dsh-gitbar-lite#readme",
+  "bugs": {
+    "url": "https://github.com/Ckarefulon/dsh-gitbar-lite/issues"
+  },
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  },
+  "main": "./lib/index.js",
+  "exports": {
+    ".": "./lib/index.js",
+    "./client": "./lib/client.js",
+    "./cordis.patch.yml": "./cordis.patch.yml",
+    "./package.json": "./package.json",
+    "./locale/en.json": "./locale/en.json",
+    "./locale/zh.json": "./locale/zh.json"
+  },
+  "files": [
+    "lib",
+    "locale",
+    "docs",
+    "cordis.patch.yml",
+    "icon.svg",
+    "README.md",
+    "README.en.md",
+    "LICENSE"
+  ],
+  "icon": "./icon.svg",
+  "engines": {
+    "node": ">=22.0.0"
+  },
+  "scripts": {
+    "peers": "node scripts/install-peers.mjs",
+    "pretest": "node scripts/install-peers.mjs",
+    "test": "node --test test/parse.test.mjs test/diff.test.mjs test/store.test.mjs test/index.test.mjs test/client.test.mjs && node test/e2e.mjs && node test/check.mjs",
+    "test:unit": "node --test test/parse.test.mjs test/diff.test.mjs test/store.test.mjs test/index.test.mjs test/client.test.mjs",
+    "test:e2e": "node test/e2e.mjs",
+    "test:live": "node test/live.mjs",
+    "test:browser": "node test/serve.mjs",
+    "check": "node test/check.mjs && node scripts/check-client-bundle.mjs .",
+    "check:bundle": "node scripts/check-client-bundle.mjs ."
+  },
+  "keywords": [
+    "dsh",
+    "dsh-plugin",
+    "deepseek-harness",
+    "git",
+    "github-desktop",
+    "source-control",
+    "diff",
+    "commit",
+    "sidebar"
+  ],
+  "peerDependencies": {
+    "@deepseek-ai/cordis": ">=4.0.0 <5",
+    "@deepseek-ai/schemastery": ">=3.18.0 <4"
+  },
+  "meta": {
+    "title": "Git 栏（轻量）",
+    "description": "GitHub Desktop 风格的 Git 面板：变更文件、勾选提交、舍弃进回收站、Commit and Push、diff 预览。"
+  },
+  "dsh": {
+    "engines": {
+      "dsh": ">=0.2.0-rc.2"
+    },
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web",
+      "inject": [
+        "@deepseek-ai/dsh-client-connection",
+        "@deepseek-ai/dsh-client-locale",
+        "@deepseek-ai/dsh-client-ui-conversation",
+        "@deepseek-ai/dsh-client-ui-sidebar-right"
+      ]
+    }
+  }
+}

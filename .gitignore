@@ -1,0 +1,12 @@
+node_modules/
+*.log
+.DS_Store
+Thumbs.db
+
+# Scratch repositories the end-to-end suite builds and destroys. Nested inside
+# the repo on purpose so the fixtures stay on the same volume as the checkout.
+test/.scratch/
+
+# lib/ is intentionally COMMITTED: a git-hosted DSH plugin must not need a build
+# step on install. The hand-written client bundle in lib/client.js is the same
+# bytes the module loader evaluates. Do not add lib/ here.

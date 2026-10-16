@@ -1,0 +1,19 @@
+# dsh-gitbar-lite — loader rows.
+#
+# One dual-face plugin row: the node half (exports ".") runs in the Host process
+# and serves this plugin's `/api/dsh-gitbar-lite/rpc` route; the `dsh.client`
+# declaration in package.json makes the browser half (exports "./client") load
+# in the Web GUI as a right-sidebar tab type.
+#
+# `name` must be this package's manifest name verbatim — dsh-client-modules keys
+# every browser row by it, and lib/client.js registers its factory under the
+# same id. `id` is the profile entry id, and it must stay equal to the package
+# name because the settings service keys its descriptors by it and the client
+# half repeats both as literals.
+#
+# `config` is deliberately empty. Every field of `Config` is volatile, so values
+# the user changes live in this profile's own patch layer and survive an upgrade
+# of this package; restating them here would shadow those edits.
+- insert:
+    - id: dsh-gitbar-lite
+      name: dsh-gitbar-lite
