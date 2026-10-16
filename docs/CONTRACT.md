@@ -327,7 +327,7 @@ this package on the next upgrade.
 | the route carrier, single registration under a hostile service order, error classification | `test/index.test.mjs` |
 | every registration identity, the wire literals, the dictionaries, and the hook-free components' rendered trees | `test/client.test.mjs` |
 | that every registered seat **renders** — the bodies, hidden states, and no-session states | `test/seats.test.mjs` |
-| the whole host stack against **real git**, mutation by mutation | `test/e2e.mjs`, 277 assertions over 22 sections that build their own fixtures |
+| the whole host stack against **real git**, mutation by mutation | `test/e2e.mjs`, 278 assertions over 22 sections that build their own fixtures |
 | the manifest, the patch layer, the tarball's contents, the two copies of the wire contract, the dictionaries, the workflow | `test/check.mjs` |
 | that the client bundle would not abort the Host boot | `scripts/check-client-bundle.mjs` |
 

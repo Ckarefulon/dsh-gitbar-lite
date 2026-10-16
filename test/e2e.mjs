@@ -1133,6 +1133,19 @@ async function main() {
     await rm(join(scratch, 'state-21b', 'trash', `${bareId}.content.json`), { force: true })
     eq('an entry whose content file is gone is not offered', (await bareHarness.call(ACTIONS.TRASH_LIST, { sessionId: SESSION })).body.entries[0].restorable?.reason, 'no-content')
     await bareHarness.expectFailure(ACTIONS.TRASH_RESTORE, { sessionId: SESSION, id: bareId }, ERROR_CODES.TRASH_NOT_RESTORABLE)
+
+    // An archive written before the feature existed has no `content` key at all,
+    // and says so in those words rather than "no content": one of those the user
+    // can act on, the other only explains itself. Take the entry above and strip
+    // its key, rather than making a new one — the repository is already clean.
+    const legacyIndex = JSON.parse(await readFile(join(scratch, 'state-21b', 'trash', 'index.json'), 'utf8'))
+    for (const record of legacyIndex.entries) delete record.content
+    await writeFile(join(scratch, 'state-21b', 'trash', 'index.json'), `${JSON.stringify(legacyIndex, null, 2)}\n`, 'utf8')
+    eq(
+      'an entry with no content key at all reads as legacy',
+      (await bareHarness.call(ACTIONS.TRASH_LIST, { sessionId: SESSION })).body.entries[0].restorable?.reason,
+      'legacy',
+    )
   }
 
   // -------------------------------------------------------- S22: the summary script
