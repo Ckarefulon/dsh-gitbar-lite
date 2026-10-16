@@ -311,6 +311,7 @@ async function main() {
     eq('with no remote the button fetches', first.body.primary, 'fetch')
     eq('clean tree', first.body.counts.files, 0)
     eq('the head commit is remembered for later diffs', first.body.head.subject, 'init')
+    eq('and nobody has fetched from this repository yet', first.body.lastFetchAt, null)
 
     const bindings = await readState(stateDir, 'bindings.json')
     const keys = Object.keys(bindings.bindings)
@@ -864,6 +865,9 @@ async function main() {
     const refreshed = await harness.call(ACTIONS.FETCH, { sessionId: SESSION })
     eq('fetch is ok', refreshed.body.ok, true)
     eq('and now the branch knows it is behind too', [refreshed.body.branch.ahead, refreshed.body.branch.behind], [1, 1])
+    // The panel reports when the repository last talked to a remote, and it reads
+    // that off FETCH_HEAD rather than remembering it, so a fetch always shows up.
+    ok('and the status says when the last fetch happened', typeof refreshed.body.lastFetchAt === 'string', refreshed.body.lastFetchAt)
 
     // No remote at all is a clear failure, not a silent no-op.
     const lonely = await freshRepo('repo-no-remote')
@@ -1030,6 +1034,91 @@ async function main() {
       eq('the user git config stays out of the way', env.GIT_CONFIG_COUNT, '0')
       eq('and the output is parsed in one stable locale', env.LC_ALL, 'C')
     }
+  }
+
+  // --------------------------------------------------- S21: putting a discard back
+
+  section('S21 a discard can be put back, but only while the tree still matches')
+  {
+    const workspace = await freshRepo('repo-restore')
+    const stateDir = join(scratch, 'state-21')
+    const harness = createHarness({ workspacePath: workspace, stateDir })
+
+    await put(join(workspace, 'a.txt'), 'one\ntwo\nthree\nKEEP THIS EDIT\n')
+    await put(join(workspace, 'fresh untracked.txt'), 'brand new content\n')
+    await put(join(workspace, 'docs', 'guide.md'), '# guide\n## edited\n')
+
+    const discarded = await harness.call(ACTIONS.DISCARD, {
+      sessionId: SESSION,
+      paths: ['a.txt', 'fresh untracked.txt', 'docs/guide.md'],
+      hardDelete: false,
+    })
+    eq('the discard is ok', discarded.body.ok, true)
+
+    // Everything is back where the discard put it: the edits are gone and the
+    // untracked file with them.
+    eq('the tracked edit is gone', (await readFile(join(workspace, 'a.txt'), 'utf8')).includes('KEEP THIS EDIT'), false)
+    const freshGone = await readFile(join(workspace, 'fresh untracked.txt'), 'utf8').then(
+      () => false,
+      () => true,
+    )
+    eq('the untracked file is gone', freshGone, true)
+
+    const listed = await harness.call(ACTIONS.TRASH_LIST, { sessionId: SESSION })
+    const entry = listed.body.entries[0]
+    eq('one entry is archived', listed.body.entries.length, 1)
+    eq('and it is offered for restore', entry.restorable?.ok, true)
+
+    // The whole point of the rule: touching a file after the discard takes the
+    // offer away, because writing back would destroy the newer work.
+    await put(join(workspace, 'a.txt'), 'one\ntwo\nthree\nA NEWER EDIT\n')
+    const touched = await harness.call(ACTIONS.TRASH_LIST, { sessionId: SESSION })
+    eq('touching a file it archived withdraws the offer', touched.body.entries[0].restorable?.ok, false)
+    eq('and says why', touched.body.entries[0].restorable?.reason, 'changed')
+
+    // Restoring now is refused outright, with nothing written.
+    await harness.expectFailure(ACTIONS.TRASH_RESTORE, { sessionId: SESSION, id: entry.id }, ERROR_CODES.TRASH_NOT_RESTORABLE)
+    eq('and the newer edit is still there', (await readFile(join(workspace, 'a.txt'), 'utf8')).includes('A NEWER EDIT'), true)
+
+    // Undo the touching: put the tree back the way the discard left it, and the
+    // offer returns.
+    await put(join(workspace, 'a.txt'), 'one\ntwo\nthree\n')
+    const again = await harness.call(ACTIONS.TRASH_LIST, { sessionId: SESSION })
+    eq('the offer returns once the tree matches again', again.body.entries[0].restorable?.ok, true)
+
+    const restored = await harness.call(ACTIONS.TRASH_RESTORE, { sessionId: SESSION, id: entry.id })
+    eq('restoring is ok', restored.body.ok, true)
+    eq('three files were put back', restored.body.restored.restored.length, 3)
+    eq('the edit is back', (await readFile(join(workspace, 'a.txt'), 'utf8')).includes('KEEP THIS EDIT'), true)
+    eq('the untracked file is back', (await readFile(join(workspace, 'fresh untracked.txt'), 'utf8')), 'brand new content\n')
+    eq('and so is the other edit', (await readFile(join(workspace, 'docs', 'guide.md'), 'utf8')).includes('## edited'), true)
+
+    // The restored change is staged, because that is the tick the user had when
+    // they asked to discard: restoring should not hand back an empty panel.
+    const status = await harness.call(ACTIONS.STATUS, { sessionId: SESSION })
+    eq('the restored files are staged', status.body.counts.staged, 3)
+    const staged = new Set(status.body.files.filter((file) => file.staged === true).map((file) => file.path))
+    ok('and git agrees they are staged', (await realStatus(workspace)).every((record) => record[0] === 'A' || record[0] === 'M'), [
+      ...staged,
+    ])
+
+    // Restoring a second time is refused: the tree no longer matches the archive,
+    // so the rule protects against writing the same content over itself.
+    await harness.expectFailure(ACTIONS.TRASH_RESTORE, { sessionId: SESSION, id: entry.id }, ERROR_CODES.TRASH_NOT_RESTORABLE)
+
+    // An archive with no content at all -- an entry whose `.content.json` was
+    // deleted -- is listed and refuses politely rather than half-restoring.
+    const bare = await freshRepo('repo-restore-bare')
+    const bareHarness = createHarness({ workspacePath: bare, stateDir: join(scratch, 'state-21b') })
+    await put(join(bare, 'a.txt'), 'one\ntwo\nthree\nGONE\n')
+    await bareHarness.call(ACTIONS.DISCARD, { sessionId: SESSION, paths: ['a.txt'], hardDelete: false })
+    const bareList = await bareHarness.call(ACTIONS.TRASH_LIST, { sessionId: SESSION })
+    const bareId = bareList.body.entries[0].id
+    // Delete *this* entry's content file. (A first draft deleted the one belonging
+    // to the other repository's entry, which of course changed nothing here.)
+    await rm(join(scratch, 'state-21b', 'trash', `${bareId}.content.json`), { force: true })
+    eq('an entry whose content file is gone is not offered', (await bareHarness.call(ACTIONS.TRASH_LIST, { sessionId: SESSION })).body.entries[0].restorable?.reason, 'no-content')
+    await bareHarness.expectFailure(ACTIONS.TRASH_RESTORE, { sessionId: SESSION, id: bareId }, ERROR_CODES.TRASH_NOT_RESTORABLE)
   }
 
   // -------------------------------------------------------------------- wrap-up

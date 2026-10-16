@@ -465,14 +465,23 @@ describe('pure helpers', () => {
     assert.equal(internals.interpolate('plain', undefined), 'plain')
   })
 
-  it('pick the status letter git itself would print', () => {
-    assert.equal(internals.statusLetter({ kind: 'modified' }), 'M')
-    assert.equal(internals.statusLetter({ kind: 'added' }), 'A')
-    assert.equal(internals.statusLetter({ kind: 'deleted' }), 'D')
-    assert.equal(internals.statusLetter({ kind: 'renamed' }), 'R')
-    assert.equal(internals.statusLetter({ kind: 'untracked', untracked: true }), '?')
-    assert.equal(internals.statusLetter({ kind: 'conflicted', conflicted: true }), '!')
-    assert.equal(internals.statusLetter(null), 'M')
+  it('pick the status mark for a change, the way Desktop picks it', () => {
+    assert.equal(internals.statusKind({ kind: 'modified' }), 'modified')
+    assert.equal(internals.statusKind({ kind: 'added' }), 'added')
+    assert.equal(internals.statusKind({ kind: 'deleted' }), 'deleted')
+    assert.equal(internals.statusKind({ kind: 'renamed' }), 'renamed')
+    // Desktop's `iconForStatus` sends a new file and an untracked one to the same
+    // `diff-added` mark, and the panel follows it: there is no separate mark for
+    // "tracked or not".
+    assert.equal(internals.statusKind({ kind: 'untracked', untracked: true }), 'added')
+    assert.equal(internals.statusKind({ kind: 'conflicted', conflicted: true }), 'conflicted')
+    assert.equal(internals.statusKind(null), 'modified')
+
+    // Every mark is a component, so the row never falls back to a character.
+    for (const kind of ['added', 'modified', 'deleted', 'renamed', 'conflicted']) {
+      assert.equal(typeof internals.statusGlyph(kind), 'function', kind)
+    }
+    assert.equal(internals.statusGlyph('nonsense'), internals.statusGlyph('modified'))
   })
 
   it('split a path into a directory part and a file name', () => {
@@ -489,6 +498,26 @@ describe('pure helpers', () => {
     assert.equal(internals.formatRelative('2026-01-01T09:00:00.000Z', now, t), 'time.hours:{"n":3}')
     assert.equal(internals.formatRelative('2025-12-30T12:00:00.000Z', now, t), 'time.days:{"n":2}')
     assert.equal(internals.formatRelative('not a date', now, t), '')
+  })
+
+  it('say when the repository last fetched, or that it never has', () => {
+    const t = (key, params) => (params === undefined ? key : `${key}(${params.when ?? params.n})`)
+    const now = Date.parse('2026-01-01T12:00:00.000Z')
+    assert.equal(internals.lastFetchLabel({ lastFetchAt: '2026-01-01T09:00:00.000Z' }, now, t), 'fetch.last(time.hours(3))')
+    assert.equal(internals.lastFetchLabel({ lastFetchAt: null }, now, t), 'fetch.never')
+    assert.equal(internals.lastFetchLabel({ lastFetchAt: '' }, now, t), 'fetch.never')
+    assert.equal(internals.lastFetchLabel(null, now, t), 'fetch.never')
+  })
+
+  it('explain why a trash entry cannot be put back', () => {
+    const t = (key) => key
+    assert.equal(internals.restoreReasonText(t, 'changed'), 'trash.restoreChanged')
+    assert.equal(internals.restoreReasonText(t, 'no-content'), 'trash.restoreNoContent')
+    assert.equal(internals.restoreReasonText(t, 'other-repo'), 'trash.restoreOtherRepo')
+    assert.equal(internals.restoreReasonText(t, 'no-repo'), 'trash.restoreNoRepo')
+    // An unknown reason still gets the honest general sentence, not a blank line.
+    assert.equal(internals.restoreReasonText(t, 'something-new'), 'trash.restoreNoContent')
+    assert.equal(internals.restoreReasonText(t, undefined), 'trash.restoreNoContent')
   })
 
   it('count only staged, non-conflicted files as committable', () => {
@@ -609,7 +638,7 @@ describe('the components without hooks', () => {
     assert.deepEqual(calls.at(-1), ['toggle', 'a.txt'])
   })
 
-  it('show the status letter, the split path, and the stats', () => {
+  it('lay a row out the way Desktop does: tick, directory, name, stats, mark last', () => {
     const tree = ChangeRow({
       file: { path: 'src/deep/a.txt', kind: 'added', staged: false, added: 12, deleted: 0 },
       t: plainT,
@@ -618,12 +647,36 @@ describe('the components without hooks', () => {
       onOpen: () => {},
     })
     assert.equal(withAttr(tree, 'data-gitbar-row').props['data-gitbar-row'], 'src/deep/a.txt')
-    assert.ok(nodesOf(tree).some((node) => node.type === '#text' && node.text === 'A'))
-    assert.ok(nodesOf(tree).some((node) => node.type === '#text' && node.text === 'a.txt'))
+    assert.equal(withAttr(tree, 'data-gitbar-row').props['data-gitbar-kind'], 'added')
+
+    // The mark ends the row, which leaves the checkbox and the path at the front.
+    assert.deepEqual(
+      tree.children.map((child) => child?.props?.className),
+      ['gitbar-tick', 'gitbar-path', 'gitbar-stats', 'gitbar-rowBtn', 'gitbar-status gitbar-status-added'],
+    )
+
+    // Directory, separator, name — that order, and three nodes so the directory
+    // is the part that gives way when the row is narrow.
+    const path = tree.children.find((child) => child?.props?.className === 'gitbar-path')
+    assert.deepEqual(
+      path.children.map((child) => child?.props?.className),
+      ['gitbar-dir', 'gitbar-sep', 'gitbar-name'],
+    )
+    assert.equal(path.children[0].children[0].text, 'src/deep')
+    assert.equal(path.children[1].children[0].text, '/')
+    assert.equal(path.children[2].children[0].text, 'a.txt')
+
+    const mark = tree.children.at(-1)
+    assert.equal(mark.props['data-gitbar-status'], 'added')
+    assert.equal(mark.props.title, plainT('status.added'))
+
     const plus = nodesOf(tree).find((node) => node.props?.className === 'gitbar-plus')
     assert.equal(plus.children[0].text, '+12')
     const minus = nodesOf(tree).find((node) => node.props?.className === 'gitbar-minus')
     assert.equal(minus, undefined, 'no deletions means no minus')
+
+    // And no letter is left anywhere: the mark is artwork, not a character.
+    assert.ok(!nodesOf(tree).some((node) => node.type === '#text' && node.text === 'A'))
   })
 
   it('name a rename by both of its paths', () => {

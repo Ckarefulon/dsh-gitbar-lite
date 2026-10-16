@@ -285,6 +285,7 @@ describe('the action surface', () => {
       'trashDelete',
       'trashDiff',
       'trashList',
+      'trashRestore',
     ])
   })
 
