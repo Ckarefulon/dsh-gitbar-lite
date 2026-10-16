@@ -176,7 +176,7 @@ lib/client.js          浏览器半边：三个 tab 类型 + 面板/回收站/di
 
 ```sh
 npm test          # 单测 + 真 git 的 e2e + 产物自检
-npm run test:e2e  # 只跑真 git 的 e2e（18 个独立仓库，224 项断言）
+npm run test:e2e  # 只跑真 git 的 e2e（19 个小节，各自造自己的夹具，230 项断言）
 npm run check     # 只用产物自检（不启 DSH 也能发现会让 DSH 起不来的问题）
 npm run test:live # 探测一个正在运行的 DSH（不在 npm test 里，需要跑着应用）
 ```

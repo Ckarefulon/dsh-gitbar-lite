@@ -2,8 +2,9 @@
 /**
  * End-to-end against real git.
  *
- * Everything here runs a real `git` in a real repository under `test/.scratch/`,
- * through the real handler and route layers, with only `ctx.subprocess` doubled
+ * Everything here runs a real `git` in a real repository under a throwaway
+ * directory in the system temp directory, through the real handler and route
+ * layers, with only `ctx.subprocess` doubled
  * (the shipped service is not importable from a plugin repository — see
  * `test/helpers/subprocess.mjs`). Nothing is stubbed about git itself: the
  * assertions read `git status`/`git log` output back to check that what the
@@ -28,9 +29,9 @@
  */
 
 import { spawn } from 'node:child_process'
-import { mkdir, readFile, rm, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
-import { fileURLToPath } from 'node:url'
 
 import { createGit } from '../lib/host/git.js'
 import { createRepo } from '../lib/host/repo.js'
@@ -40,8 +41,29 @@ import { readConfig } from '../lib/index.js'
 import { ACTIONS, ERROR_CODES, RPC_ROUTE } from '../lib/shared.js'
 import { createFakeSubprocess } from './helpers/subprocess.mjs'
 
-const root = dirname(dirname(fileURLToPath(import.meta.url)))
-const scratch = join(root, 'test', '.scratch')
+/**
+ * Where the fixtures are built: a throwaway directory in the system temp
+ * directory, deliberately **not** under the package directory.
+ *
+ * Several sections are about the workspace having no repository at all (`S1`),
+ * or having lost the one it had (`S2`), or having a non-repository directory
+ * between it and a repository (`S13`). Every one of them reads "no repository"
+ * out of `git rev-parse`, which walks *upward*: a fixture inside the checkout
+ * finds the checkout's own repository, and those expectations silently start
+ * measuring something else instead of failing.
+ *
+ * That is not hypothetical. Under `test/.scratch/` the suite was green locally
+ * only because the package directory happened to not be a repository yet, and
+ * went red the moment it became one — the same eight checks in sections 1, 2
+ * and 13, for a reason that had nothing to do with the plugin. `main()` verifies
+ * the precondition and fails loudly rather than quietly changing what the suite
+ * means.
+ *
+ * `GITBAR_E2E_SCRATCH` pins the directory instead, which is useful when looking
+ * at a failure. A pinned directory is never deleted.
+ */
+let scratch = ''
+const pinnedScratch = process.env.GITBAR_E2E_SCRATCH ?? ''
 
 /** The session every call pretends to come from. */
 const SESSION = 'session-e2e'
@@ -235,8 +257,20 @@ async function realStatus(dir) {
 // --------------------------------------------------------------------- suite
 
 async function main() {
+  scratch = pinnedScratch === '' ? await mkdtemp(join(tmpdir(), 'dsh-gitbar-lite-e2e-')) : pinnedScratch
   await rm(scratch, { recursive: true, force: true })
   await mkdir(scratch, { recursive: true })
+
+  // The precondition the module comment above is about. If this fails, the
+  // fixture root sits inside some repository, and every "nothing was detected"
+  // expectation below is about to be measured against the wrong baseline.
+  const enclosing = await git(scratch, ['rev-parse', '--show-toplevel'])
+  ok(
+    'the fixture root is outside any repository',
+    enclosing.code !== 0,
+    enclosing.code === 0 ? `inside ${enclosing.stdout.trim()}` : enclosing.stderr.trim(),
+  )
+  console.log(`# fixtures: ${scratch}`)
 
   // ---------------------------------------------------------------- S1: none
 
@@ -918,14 +952,41 @@ async function main() {
     eq('and the trash list honours it', shown.body.showAll, true)
   }
 
+  // ------------------------------------ S19: a workspace nested in a repository
+
+  section('S19 a workspace inside a repository binds to the repository root')
+  {
+    // This is the behaviour the old `test/.scratch/` fixtures were accidentally
+    // leaning on, so it is worth stating on purpose. `git` considers the whole
+    // tree above a file to be its repository, and the panel follows git: the
+    // change list is repository-scoped, so a workspace in `packages/app` shows
+    // paths relative to the repository root, not to the workspace.
+    const outer = await freshRepo('repo-nested-workspace')
+    const workspace = join(outer, 'packages', 'app')
+    await mkdir(workspace, { recursive: true })
+    await put(join(workspace, 'main.js'), 'console.log(1)\n')
+    const harness = createHarness({ workspacePath: workspace, stateDir: join(scratch, 'state-19') })
+
+    const result = await harness.call(ACTIONS.STATUS, { sessionId: SESSION })
+    eq('status is ok', result.body.ok, true)
+    eq('the workspace resolves to the repository that contains it', result.body.repoRoot, outer)
+    eq('as a detection, because nobody chose it by hand', result.body.source, 'detected')
+    eq('the workspace path itself is still the nested directory', result.body.workspacePath, workspace)
+    eq('and the nested file is listed under its repository-relative path', result.body.files.map((file) => file.path), [
+      'packages/app/main.js',
+    ])
+  }
+
   // -------------------------------------------------------------------- wrap-up
 
   console.log('')
   console.log(`${checks} checks, ${failures} failures`)
   if (failures > 0) {
     console.log(`failing section numbers: ${[...new Set(failingSections)].join(', ')}`)
+    console.log(`fixtures left behind: ${scratch}`)
     process.exit(1)
   }
+  if (pinnedScratch === '') await rm(scratch, { recursive: true, force: true })
   console.log('e2e: all good')
 }
 

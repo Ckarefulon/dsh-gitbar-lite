@@ -349,7 +349,7 @@ for (const relativePath of [
 check('LICENSE is MIT with the right holder', read('LICENSE').includes('MIT License') && read('LICENSE').includes('Copyright (c) 2026 Ckarefulon'))
 check('.gitattributes normalizes to LF, which the bundle needs to stay byte-stable', /\* text=auto eol=lf/.test(read('.gitattributes')))
 check('.gitignore does not exclude the hand-written bundle', !/^\s*lib\//m.test(read('.gitignore')))
-check('.gitignore excludes the e2e scratch repositories', /test\/\.scratch\//.test(read('.gitignore')))
+check('.gitignore excludes the unit-test scratch directory', /test\/\.scratch\//.test(read('.gitignore')))
 
 for (const [label, text] of [
   ['README.md', readme],
