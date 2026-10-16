@@ -127,6 +127,35 @@ The order is fixed and cannot be swapped:
 > **A conflicted file is refused**, with one sentence. Running `git restore` to HEAD in the middle of a merge can
 > disturb the merge state, and that risk is not worth saving a sentence.
 
+### Filling the Summary from a script
+
+Next to the Summary field is a sparkle button — rendered only when a script is configured — that fills the Summary from
+the script's output. It also runs by itself when the panel regains focus: leave the sidebar open, go and let the agent
+work in the conversation, come back, and the Summary is already there.
+
+The script goes in the `summaryScript` config field. It runs with the **repository root as its working directory** and
+is fed nothing on stdin, so "read the top version out of the CHANGELOG" is:
+
+```sh
+grep -m1 '^## ' CHANGELOG.md | sed 's/^## //'
+```
+
+Whatever it prints becomes the Summary. To fill the Description as well, put a line reading `---` in the output:
+everything after it is the Description.
+
+```sh
+echo "1.4.2"
+echo "---"
+echo "Bumped the patch version."
+```
+
+About the shell: on Windows the script prefers Git's own `sh` (so `grep`/`sed`/`awk` work) and puts its `usr/bin` back on
+`PATH` — without that those tools report "command not found". Only a machine with no `sh` at all falls back to
+`cmd.exe`, where the script must be written in cmd syntax. Elsewhere it is plain `sh`.
+
+A failing script does not raise an error banner; its exit code shows as a brief notice, and its stderr is kept verbatim so
+you can judge for yourself.
+
 ## Configuration
 
 | field | default | |
@@ -139,6 +168,7 @@ The order is fixed and cannot be swapped:
 | `trashLimit` | `200` | Trash entries kept; the oldest are dropped along with their diff files |
 | `scanDepth` | `3` | Directory depth the picker scans below the workspace root |
 | `autoFetchMs` | `300000` | How often the panel fetches on its own; `0` disables it, leaving the manual button |
+| `summaryScript` | `""` | A script that fills the Summary. It runs with the repository root as its working directory and whatever it prints becomes the Summary; a line reading `---` starts the Description |
 
 Every field is volatile, so a change on the settings page takes effect without a restart.
 

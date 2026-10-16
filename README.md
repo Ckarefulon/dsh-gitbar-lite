@@ -122,6 +122,28 @@ dsh plugin --profile <你的 profile> remove dsh-gitbar-lite
 
 > **冲突中的文件会被拒绝舍弃**，只给一句提示。在合并中途 `git restore` 到 HEAD 有扰动合并状态的风险，不值得为省一句话去冒。
 
+### 用脚本填 Summary
+
+Summary 输入框旁边有一个星星按钮（只有配了脚本才出现），点一下就把脚本的输出填进去。**侧边栏面板重新获得焦点时也会自动跑一次**——把侧边栏开着，去对话里让 agent 干活，回来，Summary 已经填好了。
+
+脚本写在配置的 `summaryScript` 里，以**仓库根目录为工作目录**运行，不喂任何 stdin。所以「取 CHANGELOG 最顶上的版本号」就是：
+
+```sh
+grep -m1 '^## ' CHANGELOG.md | sed 's/^## //'
+```
+
+输出即 Summary。要同时填 Description，就在输出里单独放一行 `---`，**该行之后**的全部内容是 Description：
+
+```sh
+echo "1.4.2"
+echo "---"
+echo "Bumped the patch version."
+```
+
+关于 shell：Windows 上优先用 Git 自带的 `sh`（`grep`/`sed`/`awk` 都可用），并把它的 `usr/bin` 补回 `PATH`——否则那些工具会「command not found」。机器上没有 `sh` 才退回 `cmd.exe`，那时脚本要按 cmd 语法写。非 Windows 就是 `sh`。
+
+脚本失败不弹错误横幅，退出码会以一条短暂提示显示；它的 stderr 原样保留，方便你自己判断。
+
 ## 配置
 
 | 字段 | 默认 | 说明 |
@@ -134,6 +156,7 @@ dsh plugin --profile <你的 profile> remove dsh-gitbar-lite
 | `trashLimit` | `200` | 回收站保留多少条；超出丢弃最旧的连同它的 diff 文件 |
 | `scanDepth` | `3` | 「不是仓库时」扫描工作区找仓库的目录深度 |
 | `autoFetchMs` | `300000` | 面板自己多久 fetch 一次；`0` = 关掉，只用手动按钮 |
+| `summaryScript` | `""` | 填 Summary 的脚本。以仓库根为工作目录运行，输出即 Summary；单独一行 `---` 之后算 Description |
 
 每个字段都是 volatile 的，所以在设置页改了立刻生效、不用重启。
 

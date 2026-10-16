@@ -500,6 +500,28 @@ describe('pure helpers', () => {
     assert.equal(internals.formatRelative('not a date', now, t), '')
   })
 
+  it('split a script output into a Summary and a Description', () => {
+    // Everything is the Summary unless a line reads exactly `---`, so a script
+    // that knows nothing about this still fills the box usefully.
+    assert.deepEqual(internals.splitScriptOutput('1.4.2'), { summary: '1.4.2', description: '' })
+    assert.deepEqual(internals.splitScriptOutput('one\ntwo'), { summary: 'one\ntwo', description: '' })
+    assert.deepEqual(internals.splitScriptOutput('1.4.2\n---\nBumped the patch.'), {
+      summary: '1.4.2',
+      description: 'Bumped the patch.',
+    })
+    // A trailing marker is an empty body, not a missing one.
+    assert.deepEqual(internals.splitScriptOutput('one line\n---\n'), { summary: 'one line', description: '' })
+    assert.deepEqual(internals.splitScriptOutput('one line\n---'), { summary: 'one line', description: '' })
+    // Trailing blank lines are the script's formatting, not its content.
+    assert.equal(internals.splitScriptOutput('1.4.2\n\n\n').summary, '1.4.2')
+    // The marker has to be the whole line, trimmed: prose is not a separator.
+    assert.deepEqual(internals.splitScriptOutput('a --- b'), { summary: 'a --- b', description: '' })
+    assert.deepEqual(internals.splitScriptOutput(''), { summary: '', description: '' })
+    assert.deepEqual(internals.splitScriptOutput(null), { summary: '', description: '' })
+    // Only the first marker counts; the rest is Description content.
+    assert.deepEqual(internals.splitScriptOutput('a\n---\nb\n---\nc'), { summary: 'a', description: 'b\n---\nc' })
+  })
+
   it('say when the repository last fetched, or that it never has', () => {
     const t = (key, params) => (params === undefined ? key : `${key}(${params.when ?? params.n})`)
     const now = Date.parse('2026-01-01T12:00:00.000Z')

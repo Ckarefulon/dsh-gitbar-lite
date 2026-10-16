@@ -123,6 +123,7 @@ describe('Config', () => {
       trashLimit: 200,
       scanDepth: 3,
       autoFetchMs: 300000,
+      summaryScript: '',
     })
   })
 
@@ -280,6 +281,7 @@ describe('the action surface', () => {
       'prefs',
       'push',
       'repos',
+      'runScript',
       'stage',
       'status',
       'trashClear',

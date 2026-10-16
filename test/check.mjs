@@ -212,6 +212,7 @@ eq('Config has exactly these fields', Object.keys(defaults).sort(), [
   'maxFileBytes',
   'scanDepth',
   'stateDir',
+  'summaryScript',
   'timeoutMs',
   'trashLimit',
 ])

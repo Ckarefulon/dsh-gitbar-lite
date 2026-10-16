@@ -189,7 +189,7 @@ async function freshRepo(name) {
 }
 
 /** The plugin, wired the way the Loader wires it, on top of a doubled subprocess. */
-function createHarness({ workspacePath, stateDir }) {
+function createHarness({ workspacePath, stateDir, summaryScript }) {
   const spawns = []
   const subprocess = createFakeSubprocess({ capture: (entry) => spawns.push(entry) })
   const services = {}
@@ -211,7 +211,7 @@ function createHarness({ workspacePath, stateDir }) {
     },
   }
 
-  const config = readConfig({ stateDir, timeoutMs: 60000 })
+  const config = readConfig({ stateDir, timeoutMs: 60000, ...(summaryScript === undefined ? {} : { summaryScript }) })
   const gitRunner = createGit(ctx, config)
   const store = createStore(ctx, config)
   const repo = createRepo(gitRunner, config)
@@ -1128,6 +1128,55 @@ async function main() {
     await rm(join(scratch, 'state-21b', 'trash', `${bareId}.content.json`), { force: true })
     eq('an entry whose content file is gone is not offered', (await bareHarness.call(ACTIONS.TRASH_LIST, { sessionId: SESSION })).body.entries[0].restorable?.reason, 'no-content')
     await bareHarness.expectFailure(ACTIONS.TRASH_RESTORE, { sessionId: SESSION, id: bareId }, ERROR_CODES.TRASH_NOT_RESTORABLE)
+  }
+
+  // -------------------------------------------------------- S22: the summary script
+
+  section('S22 a user script fills the Summary, and can fill the Description too')
+  {
+    const workspace = await freshRepo('repo-script')
+    const stateDir = join(scratch, 'state-22')
+
+    // No script configured: the action reports it did not run rather than
+    // failing, and the panel renders no button at all.
+    const quiet = createHarness({ workspacePath: workspace, stateDir })
+    eq('with no script the action reports it did not run', (await quiet.call(ACTIONS.RUN_SCRIPT, { sessionId: SESSION })).body.ran, false)
+
+    await put(join(workspace, 'CHANGELOG.md'), '# Changelog\n\n## 1.4.2\n\n- the thing\n\n## 1.4.1\n')
+    await commitAll(workspace, 'changelog')
+
+    // The script reads a file out of the tree, which is the whole point: it is
+    // given the repository root as its working directory and nothing on stdin.
+    const configured = createHarness({
+      workspacePath: workspace,
+      stateDir,
+      summaryScript: "grep -m1 '^## ' CHANGELOG.md | sed 's/^## //'",
+    })
+
+    const filled = await configured.call(ACTIONS.RUN_SCRIPT, { sessionId: SESSION })
+    eq('the script ran', filled.body.ran, true)
+    eq('and exited cleanly', filled.body.exitCode, 0)
+    // The whole point: it read a file out of the tree, because it was given the
+    // repository root as its working directory and nothing on stdin.
+    eq('its output is the version line, trimmed of the heading marker', filled.body.stdout.trim(), '1.4.2')
+
+    // The split into Summary and Description is the panel's rule, not the
+    // script's, so it is asserted in the browser half's suite.
+
+    // A failing script is reported, not thrown: the panel shows its stderr beside
+    // the button rather than turning it into an error banner.
+    const failing = createHarness({ workspacePath: workspace, stateDir, summaryScript: 'exit 3' })
+    const failed = await failing.call(ACTIONS.RUN_SCRIPT, { sessionId: SESSION })
+    eq('a failing script still reports it ran', failed.body.ran, true)
+    eq('with its exit code', failed.body.exitCode, 3)
+
+    // A script that writes to stderr is still a success as far as git is
+    // concerned; the panel decides what to do with the noise.
+    const noisy = createHarness({ workspacePath: workspace, stateDir, summaryScript: "echo 'to stderr' >&2; echo '1.4.2'" })
+    const noise = await noisy.call(ACTIONS.RUN_SCRIPT, { sessionId: SESSION })
+    eq('a script that warns on stderr still succeeds', noise.body.exitCode, 0)
+    eq('and its stdout is what gets used', noise.body.stdout.trim(), '1.4.2')
+    ok('with the stderr kept for the panel to show', noise.body.stderr.includes('to stderr'), noise.body.stderr)
   }
 
   // -------------------------------------------------------------------- wrap-up
