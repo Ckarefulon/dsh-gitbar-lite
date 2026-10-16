@@ -312,6 +312,7 @@ async function main() {
     eq('clean tree', first.body.counts.files, 0)
     eq('the head commit is remembered for later diffs', first.body.head.subject, 'init')
     eq('and nobody has fetched from this repository yet', first.body.lastFetchAt, null)
+    eq('the status carries the rhythm the panel should fetch on', first.body.autoFetchMs, 300000)
 
     const bindings = await readState(stateDir, 'bindings.json')
     const keys = Object.keys(bindings.bindings)
@@ -868,12 +869,20 @@ async function main() {
     // The panel reports when the repository last talked to a remote, and it reads
     // that off FETCH_HEAD rather than remembering it, so a fetch always shows up.
     ok('and the status says when the last fetch happened', typeof refreshed.body.lastFetchAt === 'string', refreshed.body.lastFetchAt)
+    // The panel cannot read the host's config, so the rhythm it should fetch on
+    // rides along with the status it already reads. Zero would mean "never,
+    // alone"; this harness leaves it at the default.
+    eq('the status carries the panel auto-fetch rhythm', refreshed.body.autoFetchMs, 300000)
 
     // No remote at all is a clear failure, not a silent no-op.
     const lonely = await freshRepo('repo-no-remote')
     const lonelyHarness = createHarness({ workspacePath: lonely, stateDir: join(scratch, 'state-15b') })
     await lonelyHarness.expectFailure(ACTIONS.FETCH, { sessionId: SESSION }, ERROR_CODES.NO_REMOTE)
     await lonelyHarness.expectFailure(ACTIONS.PUSH, { sessionId: SESSION }, ERROR_CODES.NO_REMOTE)
+    // A repository with no remote still reports the rhythm: deciding *not* to
+    // fetch belongs to the panel, which is the side that knows whether the tab is
+    // visible, not to the repository layer.
+    eq('and a repository with no remote reports it too', (await lonelyHarness.call(ACTIONS.STATUS, { sessionId: SESSION })).body.autoFetchMs, 300000)
   }
 
   // ------------------------------------------------------- S16: repository scan

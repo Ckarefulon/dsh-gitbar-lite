@@ -23,6 +23,7 @@ DSH 的右栏本来就是一个常驻的标签区。Git 面板放这里，意味
 | Commit | 只提交勾上的（因为勾选写进了索引） |
 | Commit and Push | 提交后立刻推送；**推送失败不会说「提交失败」**——提交已经发生了，面板会明说「已提交 xxx，但推送失败」 |
 | 上下文按钮 | 有本地未推送提交时是 **Push**，没有上游时是 **Publish**，否则是 **Fetch** |
+| 自动 Fetch | 面板可见且仓库有远端时，每 5 分钟自己 fetch 一次（`autoFetchMs` 可调，`0` 关掉）。失败是静默的，不弹错误 |
 | 舍弃更改 | 单个文件或「全部舍弃」；动手前先把这次改动的 diff 归档，确认框里可以勾「彻底删除」 |
 | 回收站 | 独立 tab。每次舍弃存一份 diff，并记下**是对哪个提交（`abc1234 初始提交`）取的 diff** |
 | diff 预览 | 双击文件，或点回收站里的一条，在右栏开一个 diff 标签页——**永远只占一个**，再点就复用 |
@@ -132,11 +133,13 @@ dsh plugin --profile <你的 profile> remove dsh-gitbar-lite
 | `maxFileBytes` | `2097152` | 比这大的未跟踪文件只列出来，不读内容、不归档、不出 diff |
 | `trashLimit` | `200` | 回收站保留多少条；超出丢弃最旧的连同它的 diff 文件 |
 | `scanDepth` | `3` | 「不是仓库时」扫描工作区找仓库的目录深度 |
+| `autoFetchMs` | `300000` | 面板自己多久 fetch 一次；`0` = 关掉，只用手动按钮 |
 
 每个字段都是 volatile 的，所以在设置页改了立刻生效、不用重启。
 
 **状态存在哪**：`<DSH_HOME>/dsh-gitbar-lite/`（没有 `DSH_HOME` 就回落 `~/.dsh`）——
-`bindings.json`（工作区 → 仓库）、`prefs.json`（那两个勾选偏好）、`trash/index.json` + `trash/<id>.diff`。
+`bindings.json`（工作区 → 仓库）、`prefs.json`（那两个勾选偏好）、`trash/index.json` + `trash/<id>.diff` +
+`trash/<id>.content.json`（恢复用的原始内容）。
 都是先写临时文件再 rename，所以写到一半崩了也不会把文件截断。
 
 ## 工作原理

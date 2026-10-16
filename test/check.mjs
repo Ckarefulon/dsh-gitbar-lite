@@ -206,6 +206,7 @@ section('4. the host half loads, and its Config is exactly what is documented')
 eq('the plugin name is the package name', pluginName, manifest.name)
 const defaults = new Config({}).get()
 eq('Config has exactly these fields', Object.keys(defaults).sort(), [
+  'autoFetchMs',
   'gitPath',
   'maxDiffBytes',
   'maxFileBytes',

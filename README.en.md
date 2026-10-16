@@ -23,6 +23,7 @@ The column is narrow (300px minimum, and a narrow viewport makes it full-screen)
 | Commit | Commits exactly what is ticked — because ticking wrote the index |
 | Commit and Push | Commits, then pushes. **A failed push never claims the commit failed**: the commit happened, and the panel says "committed `abc1234`, but the push failed" |
 | Context button | **Push** when local commits are unpushed, **Publish** when the branch has no upstream, **Fetch** otherwise |
+| Automatic fetch | Every five minutes while the panel is visible and the repository has a remote (`autoFetchMs`, `0` to disable). Failures are silent — no error banner |
 | Discard | One file or all of them; the diff is archived *before* anything is restored, and the confirmation offers "delete for good" |
 | Trash | Its own tab. Every discard keeps a diff, recorded **against the commit it was taken from** (`abc1234 initial commit`) |
 | Diff preview | Double-click a file, or a trash entry, to open a diff tab in the column — **one tab, ever**, re-navigated in place |
@@ -137,12 +138,14 @@ The order is fixed and cannot be swapped:
 | `maxFileBytes` | `2097152` | Larger untracked files are listed but not read, archived, or diffed |
 | `trashLimit` | `200` | Trash entries kept; the oldest are dropped along with their diff files |
 | `scanDepth` | `3` | Directory depth the picker scans below the workspace root |
+| `autoFetchMs` | `300000` | How often the panel fetches on its own; `0` disables it, leaving the manual button |
 
 Every field is volatile, so a change on the settings page takes effect without a restart.
 
 **Where state lives**: `<DSH_HOME>/dsh-gitbar-lite/` (falling back to `~/.dsh`) — `bindings.json` (workspace →
-repository), `prefs.json` (the two remembered choices), and `trash/index.json` plus `trash/<id>.diff`. Every write
-goes through a temp file and a rename, so a crash mid-write cannot truncate a file.
+repository), `prefs.json` (the two remembered choices), `trash/index.json` plus `trash/<id>.diff`, and
+`trash/<id>.content.json` (the raw contents a restore needs). Every write goes through a temp file and a rename, so a
+crash mid-write cannot truncate a file.
 
 ## How it works
 

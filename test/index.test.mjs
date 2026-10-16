@@ -122,6 +122,7 @@ describe('Config', () => {
       maxFileBytes: 2 * 1024 * 1024,
       trashLimit: 200,
       scanDepth: 3,
+      autoFetchMs: 300000,
     })
   })
 
