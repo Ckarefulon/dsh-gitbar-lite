@@ -1109,9 +1109,12 @@ async function main() {
     eq('the untracked file is recreated', await readFile(join(workspace, 'fresh untracked.txt'), 'utf8'), 'brand new content\n')
     eq('and the other edit too', await readFile(join(workspace, 'docs', 'guide.md'), 'utf8'), '# guide\n## edited\n')
 
-    // Replaying it twice would double the change, so the second attempt is
-    // refused by the same check that allowed the first.
-    await harness.expectFailure(ACTIONS.TRASH_RESTORE, { sessionId: SESSION, id: entry.id }, ERROR_CODES.TRASH_NOT_RESTORABLE)
+    // The entry is gone once it has been put back. Keeping it would leave a row
+    // that can only ever be greyed out — replaying it again would apply the same
+    // change a second time — so the list should not still be offering it.
+    const afterRestore = await harness.call(ACTIONS.TRASH_LIST, { sessionId: SESSION })
+    eq('the entry is consumed by the restore', afterRestore.body.entries.length, 0)
+    await harness.expectFailure(ACTIONS.TRASH_RESTORE, { sessionId: SESSION, id: entry.id }, ERROR_CODES.TRASH_NOT_FOUND)
 
     // --- the reasons a diff cannot be replayed -----------------------------
 
