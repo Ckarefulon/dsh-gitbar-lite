@@ -384,10 +384,18 @@ show the index claim rather than assume it.
   shipped plugins (including `dsh-deepseek-webchat`), but three source comments
   label them "not part of `ISidebarRight`". This is the first thing to re-check
   on a DSH upgrade.
-- **`@deepseek-ai/dsh-client-ui-dockkit` was not available to read**, so the tab
-  strip's height and the pane's padding could not be confirmed. The styles
-  therefore add no top padding and claim only `height: 100%; min-height: 0`, so
-  they fill whatever the kit provides instead of guessing.
+- **The tab strip's height is now known, and it is load-bearing.** The docking
+  kit's `_tabStrip` is `height:28px; padding:10px 6px 0`, so a tab body starts at
+  y=38, and the shell's own sidebar tabs (files, browser, deliverables,
+  document preview) each open with `height:38px; border-bottom:.5px solid
+  var(--dsw-alias-border-l3)`. That is what puts their rule on the same row as
+  the conversation header's, which the shell draws at the bottom of the strip
+  (measured live: y=76). This panel's header follows the same numbers — a
+  border-box 38px box with no vertical padding — because a content-box one with
+  8px/6px padding plus a 1px rule came to 39px and left two rules one pixel
+  apart. Both the shape and the arithmetic are asserted in `test/client.test.mjs`
+  ("puts the header rule exactly on the conversation header line"); the numbers
+  were confirmed by measuring the live app, not by reading the kit.
 - **Git's path encoding on this machine.** `core.quotepath=false` plus `-z`
   produced UTF-8 paths in every fixture that was checked (including a non-ASCII
   name), and the parsers split on NUL rather than on quoting. A repository whose
@@ -406,8 +414,11 @@ show the index claim rather than assume it.
 - Commit hooks run. A hook that blocks or hangs is the user's own hook; the child
   is killed at `graceMs` only if the command times out, and `timeoutMs` is the
   knob for that.
-- The trash keeps the diffs, not the files. Recovery means applying the archived
-  diff by hand; the plugin does not offer a restore button, by agreement.
+- The trash keeps the diffs, not the files. Restoring replays the archived diff
+  with `git apply` and then stages the paths it produced, so a restored change
+  comes back ticked like any other changed file. A diff cut short at the archive
+  size limit, or one whose diff is only `Binary files … differ`, is refused for
+  that reason rather than restored incompletely.
 - Binary content is not archived — the diff says `Binary files … differ`, which
   is honest but is not a backup.
 - An untracked file over `maxFileBytes` is deleted with only a stub in the

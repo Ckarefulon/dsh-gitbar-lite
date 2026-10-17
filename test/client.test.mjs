@@ -862,6 +862,44 @@ describe('the DOM hooks a fixture would need', () => {
     assert.ok(/\.gitbar-root\{[^}]*min-height:0/.test(css), 'the root must be allowed to shrink')
   })
 
+  /**
+   * The panel's top rule has to be the conversation header's rule, continued.
+   *
+   * The shell puts the conversation's horizontal line at the bottom of a 38px
+   * tab strip, and a tab body starts underneath it — so a header of exactly 38
+   * pixels lands its own border on the same row. Both halves of that number are
+   * load-bearing and both were got wrong: a content-box header with 8px/6px
+   * padding and a 1px rule came to 39px (one pixel low), and the shell ships
+   * `height:38px; border-bottom:.5px` on every sidebar header it owns.
+   */
+  it('puts the header rule exactly on the conversation header line', () => {
+    const rule = /\.gitbar-head\{([^}]*)\}/.exec(bundle)
+    assert.ok(rule !== null, 'the stylesheet has no .gitbar-head rule')
+    const body = rule[1]
+
+    // 38px total: border-box, so the rule is inside the height rather than added
+    // to it.
+    assert.ok(/box-sizing:border-box/.test(body), 'the header must be border-box, or the rule is added to its height')
+    const height = /(?:^|;)height:(\d+)px/.exec(body)
+    assert.ok(height !== null, 'the header must state a height, not derive one from padding')
+    assert.equal(Number(height[1]), 38, 'the header must be 38px: that is what the shell\'s tab strip measures')
+
+    // No vertical padding: with a fixed height it could only push the content
+    // around, and the previous 8px/6px pair is what made the box 39px.
+    const padding = /(?:^|;)padding:([^;]+)/.exec(body)
+    assert.ok(padding !== null, 'the header must state its padding')
+    const parts = padding[1].trim().split(/\s+/)
+    // CSS shorthand: one value is all four sides, two are vertical/horizontal,
+    // three are top/horizontal/bottom, four are clockwise from the top.
+    const vertical = parts.length === 1 ? [parts[0], parts[0]] : parts.length === 2 ? [parts[0], parts[0]] : [parts[0], parts[2]]
+    for (const part of vertical) {
+      assert.equal(part, '0', `vertical padding (${padding[1]}) would fight the fixed height`)
+    }
+
+    // A hairline, like the shell's own headers, in the token it uses for them.
+    assert.ok(/border-bottom:\.5px solid var\(--dsw-alias-border-l3/.test(body), 'the rule must be the shell\'s .5px border-l3 hairline')
+  })
+
   it('never writes a literal colour, so the theme decides', () => {
     const assignments = [...bundle.matchAll(/(?:color|background|border-color)\s*:\s*([^;'}]+)/g)].map((match) => match[1].trim())
     for (const value of assignments) {

@@ -1109,6 +1109,23 @@ async function main() {
     eq('the untracked file is recreated', await readFile(join(workspace, 'fresh untracked.txt'), 'utf8'), 'brand new content\n')
     eq('and the other edit too', await readFile(join(workspace, 'docs', 'guide.md'), 'utf8'), '# guide\n## edited\n')
 
+    // What came back is ticked, which in this panel means staged. Read out of the
+    // status payload the action itself returned — that is what the panel draws
+    // its ticks from, so a check here is the same claim a user makes by looking.
+    const ticked = (restored.body.files ?? []).filter((file) => file.staged === true).map((file) => file.path).sort()
+    eq('everything restored comes back ticked', ticked, ['a.txt', 'docs/guide.md', 'fresh untracked.txt'])
+    eq('and the payload agrees with the tick count', restored.body.counts?.staged, 3)
+    eq('the host names what it staged', (restored.body.restored.staged ?? []).slice().sort(), ['a.txt', 'docs/guide.md', 'fresh untracked.txt'])
+
+    // The tick is the real index, so git has to agree with the panel, not just
+    // the payload: this is the claim a user checks by typing `git status`.
+    // Porcelain v2's `1 XY …` records put the *index* status first, so a `'.'`
+    // there is "not staged" whatever the worktree column says — counting `A.`
+    // only would miss the two restored files that are staged *modifications*.
+    const porcelain = await git(workspace, ['status', '--porcelain=v2', '-z'])
+    const stagedRecords = porcelain.stdout.split('\0').filter((record) => record.startsWith('1 ') && record[2] !== '.')
+    eq('git agrees that they are staged', stagedRecords.length, 3)
+
     // The entry is gone once it has been put back. Keeping it would leave a row
     // that can only ever be greyed out — replaying it again would apply the same
     // change a second time — so the list should not still be offering it.

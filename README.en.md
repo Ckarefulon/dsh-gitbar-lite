@@ -270,9 +270,11 @@ judgement should be revisited; it is recorded in `docs/CONTRACT.md`.
 - The trash keeps **that one diff**. Restoring replays it with `git apply`, which reproduces the exact bytes (verified
   with CRLF, no trailing newline, unicode, and trailing spaces). It replays only while the working tree is still what
   the discard left: if HEAD moved, or the files were touched since, the button greys out and says which — otherwise a
-  stale change would land on top of newer work. **A successful restore removes the entry**: it is the reverse of the
-  discard that made it, so once the change is back the archive has no use, and replaying it again would apply the same
-  change twice.
+  stale change would land on top of newer work. **A restored change comes back ticked**: the host stages the paths the
+  replay produced, which is the same "every changed file is ticked by default" rule and the same meaning a tick has
+  everywhere else here (a real `git add`), so a terminal's `git status` agrees. **A successful restore removes the
+  entry**: it is the reverse of the discard that made it, so once the change is back the archive has no use, and
+  replaying it again would apply the same change twice.
 - Binary content is not archived; the diff says `Binary files … differ`. That is honest, and it is not a backup.
 - An untracked file larger than `maxFileBytes` is deleted with only a note in the archive, and the confirmation box
   does not yet warn about that specifically.
