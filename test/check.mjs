@@ -353,6 +353,22 @@ check('.gitattributes normalizes to LF, which the bundle needs to stay byte-stab
 check('.gitignore does not exclude the hand-written bundle', !/^\s*lib\//m.test(read('.gitignore')))
 check('.gitignore excludes the unit-test scratch directory', /test\/\.scratch\//.test(read('.gitignore')))
 
+// Every piece of artwork is rendered by something. A glyph that is defined and
+// never placed is the kind of thing that survives a refactor invisibly: it costs
+// bytes in a hand-written bundle, and its presence suggests an icon that some
+// screen is missing. Counting occurrences by name is enough here because these
+// are local `const`s with distinctive names.
+{
+  const art = []
+  for (const match of client.matchAll(/^ {4}const (\w+Glyph) = /gm)) {
+    const name = match[1]
+    const occurrences = client.split(name).length - 1
+    // One occurrence is the declaration itself.
+    if (occurrences < 2) art.push(name)
+  }
+  eq('every glyph is rendered somewhere', art, [])
+}
+
 for (const [label, text] of [
   ['README.md', readme],
   ['README.en.md', readmeEn],
