@@ -1197,60 +1197,64 @@ async function main() {
 
   // ------------------------------------- S23: the script is edited in the panel
 
-  section('S23 the script can be written from the panel, and the config is only a default')
+  section('S23 the script belongs to a repository, and is written from the panel')
   {
     const workspace = await freshRepo('repo-script-prefs')
     const stateDir = join(scratch, 'state-23')
     await put(join(workspace, 'CHANGELOG.md'), '# Changelog\n\n## 2.0.0\n\n- thing\n')
     await commitAll(workspace, 'changelog')
 
-    // The panel saves the script as a preference; the status then reports it, so
-    // the editor shows what was saved rather than what the config said.
+    const script = "grep -m1 '^## ' CHANGELOG.md | sed 's/^## //'"
     const harness = createHarness({ workspacePath: workspace, stateDir })
     eq('a first-time panel sees no script', (await harness.call(ACTIONS.STATUS, { sessionId: SESSION })).body.summaryScript, '')
+    eq('and knows it is not saved', (await harness.call(ACTIONS.STATUS, { sessionId: SESSION })).body.summaryScriptSaved, false)
 
-    const saved = await harness.call(ACTIONS.PREFS, {
-      sessionId: SESSION,
-      summaryScript: "grep -m1 '^## ' CHANGELOG.md | sed 's/^## //'",
-    })
-    eq('the preference is stored', saved.body.prefs.summaryScript, "grep -m1 '^## ' CHANGELOG.md | sed 's/^## //'")
-    eq(
-      'and the status reports it back',
-      (await harness.call(ACTIONS.STATUS, { sessionId: SESSION })).body.summaryScript,
-      "grep -m1 '^## ' CHANGELOG.md | sed 's/^## //'",
-    )
+    const saved = await harness.call(ACTIONS.SAVE_SCRIPT, { sessionId: SESSION, script })
+    eq('the script is stored', saved.body.summaryScript, script)
+    eq('and marked as saved', saved.body.summaryScriptSaved, true)
+    eq('the status reports it back', (await harness.call(ACTIONS.STATUS, { sessionId: SESSION })).body.summaryScript, script)
 
-    // The panel's script is what runs.
     const ran = await harness.call(ACTIONS.RUN_SCRIPT, { sessionId: SESSION })
     eq('the saved script runs', ran.body.ran, true)
     eq('and produces the version', ran.body.stdout.trim(), '2.0.0')
 
-    // A preferences patch that never mentions the script must not clear it.
-    await harness.call(ACTIONS.PREFS, { sessionId: SESSION, trashHardDelete: true })
-    eq(
-      'an unrelated preference does not clear the script',
-      (await harness.call(ACTIONS.STATUS, { sessionId: SESSION })).body.summaryScript,
-      "grep -m1 '^## ' CHANGELOG.md | sed 's/^## //'",
-    )
+    // --- it belongs to one repository ------------------------------------
 
-    // An empty preference falls back to the config: the box being empty must not
-    // silently disable a script the user configured the old way.
+    // A second repository next door must not inherit it. This is the whole point
+    // of keying by repository: a Vue project's script has no business running in
+    // a Rust one.
+    const other = await freshRepo('repo-script-other')
+    const otherHarness = createHarness({ workspacePath: other, stateDir })
+    eq('another repository starts with no script', (await otherHarness.call(ACTIONS.STATUS, { sessionId: SESSION })).body.summaryScript, '')
+    eq('and running there does nothing', (await otherHarness.call(ACTIONS.RUN_SCRIPT, { sessionId: SESSION })).body.ran, false)
+
+    // ...and giving it one leaves the first alone.
+    await otherHarness.call(ACTIONS.SAVE_SCRIPT, { sessionId: SESSION, script: 'echo other' })
+    eq('each repository keeps its own', (await harness.call(ACTIONS.STATUS, { sessionId: SESSION })).body.summaryScript, script)
+    eq('the other one too', (await otherHarness.call(ACTIONS.STATUS, { sessionId: SESSION })).body.summaryScript, 'echo other')
+
+    // --- the config value is only a default ---------------------------------
+
+    // With nothing stored, a configured script is what is reported and run: the
+    // box being untouched must not silently disable a script set that way.
     const configured = createHarness({
       workspacePath: workspace,
       stateDir: join(scratch, 'state-23b'),
-      summaryScript: "grep -m1 '^## ' CHANGELOG.md | sed 's/^## //'",
+      summaryScript: script,
     })
     eq(
-      'with no preference the config value is reported',
+      'with nothing stored the config value is reported',
       (await configured.call(ACTIONS.STATUS, { sessionId: SESSION })).body.summaryScript,
-      "grep -m1 '^## ' CHANGELOG.md | sed 's/^## //'",
+      script,
     )
     eq('and it runs', (await configured.call(ACTIONS.RUN_SCRIPT, { sessionId: SESSION })).body.stdout.trim(), '2.0.0')
 
-    // Clearing the box clears the stored value.
-    await harness.call(ACTIONS.PREFS, { sessionId: SESSION, summaryScript: '' })
-    eq('the box can be emptied', (await harness.call(ACTIONS.STATUS, { sessionId: SESSION })).body.summaryScript, '')
-    eq('and then there is nothing to run', (await harness.call(ACTIONS.RUN_SCRIPT, { sessionId: SESSION })).body.ran, false)
+    // --- clearing works ------------------------------------------------------
+
+    await harness.call(ACTIONS.SAVE_SCRIPT, { sessionId: SESSION, script: '' })
+    const cleared = await harness.call(ACTIONS.STATUS, { sessionId: SESSION })
+    eq('the box can be emptied', cleared.body.summaryScript, '')
+    eq('and that is recorded as "not saved" rather than lost', cleared.body.summaryScriptSaved, false)
   }
 
   console.log('')

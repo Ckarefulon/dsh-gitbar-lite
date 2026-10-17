@@ -35,10 +35,15 @@ after(async () => {
 /** A store bound to a throwaway directory. */
 async function makeStore(config = {}) {
   const dir = await tempDir('store')
+  // A stand-in repository directory, so a test can assert that writing a script
+  // leaves it untouched.
+  const repository = join(dir, 'repo')
+  await mkdir(repository, { recursive: true })
   const warnings = []
   const ctx = { logger: { warn: (message) => warnings.push(message) } }
   return {
     dir,
+    scratch: repository,
     warnings,
     store: createStore(ctx, { stateDir: dir, trashLimit: 200, ...config }),
   }
@@ -183,38 +188,64 @@ describe('bindings', () => {
 describe('preferences', () => {
   it('starts with the safe answers', async () => {
     const { store } = await makeStore()
-    assert.deepEqual(await store.readPrefs(), { trashHardDelete: false, trashShowAllRepos: false, summaryScript: '' })
+    assert.deepEqual(await store.readPrefs(), { trashHardDelete: false, trashShowAllRepos: false })
   })
 
   it('merges a patch instead of replacing the document', async () => {
     const { store } = await makeStore()
     await store.writePrefs({ trashHardDelete: true })
     await store.writePrefs({ trashShowAllRepos: true })
-    assert.deepEqual(await store.readPrefs(), { trashHardDelete: true, trashShowAllRepos: true, summaryScript: '' })
+    assert.deepEqual(await store.readPrefs(), { trashHardDelete: true, trashShowAllRepos: true })
   })
 
-  it('reads back only booleans and a string, whatever was on disk', async () => {
+  it('reads back only booleans, whatever was on disk', async () => {
     const { store } = await makeStore()
     await mkdir(store.baseDir(), { recursive: true })
     await writeFile(
       store.prefsPath(),
-      JSON.stringify({ version: 1, trashHardDelete: 'yes', trashShowAllRepos: 1, summaryScript: 42 }),
+      JSON.stringify({ version: 1, trashHardDelete: 'yes', trashShowAllRepos: 1 }),
       'utf8',
     )
-    assert.deepEqual(await store.readPrefs(), { trashHardDelete: false, trashShowAllRepos: false, summaryScript: '' })
+    assert.deepEqual(await store.readPrefs(), { trashHardDelete: false, trashShowAllRepos: false })
+  })
+})
+
+describe('scripts, which belong to a repository', () => {
+  it('starts empty, and survives a round trip', async () => {
+    const { store } = await makeStore()
+    assert.equal(await store.readScript('/repos/one'), '')
+    await store.writeScript('/repos/one', 'echo hi')
+    assert.equal(await store.readScript('/repos/one'), 'echo hi')
   })
 
-  it('keeps the script across a patch that does not mention it', async () => {
+  it('keeps one per repository, so two projects never share a script', async () => {
     const { store } = await makeStore()
-    await store.writePrefs({ summaryScript: 'echo hi' })
-    // A patch about something else must not clear it: that is the difference
-    // between "leave it alone" and "set it to empty".
-    await store.writePrefs({ trashHardDelete: true })
-    assert.equal((await store.readPrefs()).summaryScript, 'echo hi')
+    await store.writeScript('/repos/one', 'a')
+    await store.writeScript('/repos/two', 'b')
+    assert.equal(await store.readScript('/repos/one'), 'a')
+    assert.equal(await store.readScript('/repos/two'), 'b')
 
-    // And an explicit empty string does clear it.
-    await store.writePrefs({ summaryScript: '' })
-    assert.equal((await store.readPrefs()).summaryScript, '')
+    // Clearing one leaves the other alone.
+    await store.writeScript('/repos/one', '')
+    assert.equal(await store.readScript('/repos/one'), '')
+    assert.equal(await store.readScript('/repos/two'), 'b')
+  })
+
+  it('keys by the same canonical form the bindings use', async () => {
+    const { store, scratch } = await makeStore()
+    await store.writeScript(scratch, 'echo hi')
+    // A trailing separator and, on Windows, a different case name one directory.
+    assert.equal(await store.readScript(`${scratch}${sep}`), 'echo hi')
+    if (process.platform === 'win32') assert.equal(await store.readScript(scratch.toUpperCase()), 'echo hi')
+  })
+
+  it('writes nothing into the repository itself', async () => {
+    const { store, scratch } = await makeStore()
+    await store.writeScript(scratch, 'echo hi')
+    // The whole point: the script lives in the plugin's own state directory, so
+    // a repository the user is committing to is never touched.
+    const inRepo = await readdir(scratch)
+    assert.deepEqual(inRepo, [])
   })
 })
 

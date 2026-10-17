@@ -1,6 +1,6 @@
 {
   "name": "dsh-gitbar-lite",
-  "version": "0.6.0",
+  "version": "0.6.1",
   "description": "A GitHub Desktop-style Git panel for DSH: changed files, tick-to-stage, Summary + Description, Commit and Commit and Push, discard-to-trash, and diff preview, in the built-in right sidebar.",
   "type": "module",
   "license": "MIT",

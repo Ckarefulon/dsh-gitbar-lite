@@ -26,7 +26,7 @@ import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs'
 import { dirname, join, relative } from 'node:path'
 
 import { Config, internals, name as pluginName } from '../lib/index.js'
-import { ACTIONS, DISCARD_SCOPE, ERROR_CODES, PRIMARY_ACTIONS, RPC_ROUTE, STATE_FILES } from '../lib/shared.js'
+import { ACTIONS, DEFAULT_SUMMARY_SCRIPT, DISCARD_SCOPE, ERROR_CODES, PRIMARY_ACTIONS, RPC_ROUTE, STATE_FILES } from '../lib/shared.js'
 
 const root = dirname(import.meta.dirname)
 
@@ -197,6 +197,28 @@ eq('the client knows both discard scopes', missingScope, [])
 check('the client repeats the plugin id', client.includes(`'${pluginName}'`))
 check('the client never invents a second route', (client.match(/\/api\//g) ?? []).length === 1)
 check('the client does not know where state is kept, only the host does', !client.includes('bindings.json') && !client.includes('trash/index.json'))
+
+// The starting-point script exists twice — once in `shared.js` for the host, once
+// inline in the bundle, which cannot import. A one-character drift between them
+// would make the box prefill one thing and the host run another, so the two are
+// compared as *values*: the source text differs legitimately (the two files quote
+// the shell differently), so comparing it would fail on a correct pair.
+{
+  const declaration = 'const DEFAULT_SUMMARY_SCRIPT ='
+  const start = client.indexOf(declaration)
+  const end = start === -1 ? -1 : client.indexOf('\n\n', start)
+  let mirrored = null
+  if (start !== -1 && end !== -1) {
+    const expression = client.slice(start + declaration.length, end)
+    try {
+      // The right-hand side is a plain string-concatenation expression.
+      mirrored = new Function(`return (${expression})`)()
+    } catch {
+      mirrored = null
+    }
+  }
+  eq('the client carries the same default script as the host', mirrored, DEFAULT_SUMMARY_SCRIPT)
+}
 check('and the host declares those names in one place', Object.values(STATE_FILES).every((name) => shared.includes(name)))
 
 // ------------------------------------------- 4. the host half's own contract

@@ -147,6 +147,9 @@ echo "Bumped the patch version."
 
 脚本失败不弹错误横幅，退出码会以一条短暂提示显示；它的 stderr 原样保留，方便你自己判断。
 
+
+> 脚本是**按仓库**存的（键是仓库路径，文件在 <DSH_HOME>/dsh-gitbar-lite/scripts.json）：A 项目配的脚本不会跑到 B 项目里。一个从没配过脚本的仓库，编辑框会先用内置的默认脚本打底——就是你上面看到的那条 changelog 版本号。
+
 ## 配置
 
 | 字段 | 默认 | 说明 |
@@ -205,7 +208,7 @@ lib/client.js          浏览器半边：三个 tab 类型 + 面板/回收站/di
 
 ```sh
 npm test          # 单测 + 真 git 的 e2e + 产物自检
-npm run test:e2e  # 只跑真 git 的 e2e（23 个小节，各自造自己的夹具，289 项断言）
+npm run test:e2e  # 只跑真 git 的 e2e（23 个小节，各自造自己的夹具，294 项断言）
 npm run check     # 只用产物自检（不启 DSH 也能发现会让 DSH 起不来的问题）
 npm run test:live # 探测一个正在运行的 DSH（不在 npm test 里，需要跑着应用）
 ```

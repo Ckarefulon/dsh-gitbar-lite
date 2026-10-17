@@ -160,6 +160,11 @@ About the shell: on Windows the script prefers Git's own `sh` (so `grep`/`sed`/`
 A failing script does not raise an error banner; its exit code shows as a brief notice, and its stderr is kept verbatim so
 you can judge for yourself.
 
+
+> The script is stored **per repository** (keyed by its path, in `<DSH_HOME>/dsh-gitbar-lite/scripts.json`), so one
+> project never runs another one's script. A repository that has never had one opens the editor seeded with the
+> built-in default — the changelog lookup shown above.
+
 ## Configuration
 
 | field | default | |
@@ -227,7 +232,7 @@ are in [`docs/CONTRACT.md`](./docs/CONTRACT.md).
 
 ```sh
 npm test          # unit + real-git e2e + artifact self-check
-npm run test:e2e  # the real-git suite alone (23 sections building their own fixtures, 289 assertions)
+npm run test:e2e  # the real-git suite alone (23 sections building their own fixtures, 294 assertions)
 npm run check     # artifact self-check alone (catches boot-breaking mistakes without restarting DSH)
 npm run test:live # probe a running DSH (not part of npm test; needs the app running)
 ```

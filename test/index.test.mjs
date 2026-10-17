@@ -282,6 +282,7 @@ describe('the action surface', () => {
       'push',
       'repos',
       'runScript',
+      'saveScript',
       'stage',
       'status',
       'trashClear',
