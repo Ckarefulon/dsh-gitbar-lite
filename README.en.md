@@ -19,6 +19,7 @@ The column is narrow (300px minimum, and a narrow viewport makes it full-screen)
 | Change list | Modified, added, deleted, renamed and untracked, each with its `+n −n` line counts |
 | Ticking | **A tick is a real `git add`**; unticking is `git restore --staged`. What a terminal's `git status` shows is the same thing |
 | Half-staged files | When the index and the worktree are both dirty the tick renders indeterminate; either click restates the file as a whole |
+| Select all | A tri-state box left of the list heading: tick everything, untick everything, and it reads as mixed when the selection is partial. **Conflicted files are excluded**, the same rule the automatic selection follows |
 | Summary / Description | Summary is one always-visible line; the triangle at its right reveals Description |
 | Commit | Commits exactly what is ticked — because ticking wrote the index |
 | Commit and Push | Commits, then pushes. **A failed push never claims the commit failed**: the commit happened, and the panel says "committed `abc1234`, but the push failed" |

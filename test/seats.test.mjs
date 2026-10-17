@@ -30,9 +30,20 @@ import test from 'node:test'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 
-/** The bundle, loaded the way the host loads it. */
-function loadBundle() {
+/**
+ * The bundle, loaded the way the host loads it.
+ *
+ * `initial` lets a caller seed `useState`: the stub otherwise fixes every hook at
+ * its first value, so a body can only ever render its loading branch and the
+ * parts that depend on loaded data stay unrendered. Seeding it is not a
+ * fabrication — it is the state the host really does deliver, one tick later.
+ *
+ * @param {unknown[]} [initial] the values `useState` returns, in call order
+ */
+function loadBundle(initial = []) {
   const source = readFileSync(new URL('../lib/client.js', import.meta.url), 'utf8')
+
+  let stateIndex = 0
 
   const styleElements = []
   globalThis.window = globalThis
@@ -54,8 +65,12 @@ function loadBundle() {
     if (name === 'react') {
       return {
         createElement: (type, props, ...children) => ({ type, props, children }),
-        useState: (initial) => [initial, () => {}],
-        useRef: (initial) => ({ current: initial }),
+        useState: (fallback) => {
+          const value = stateIndex < initial.length ? initial[stateIndex] : fallback
+          stateIndex += 1
+          return [value, () => {}]
+        },
+        useRef: (initialRef) => ({ current: initialRef }),
         useEffect: () => {},
         useCallback: (fn) => fn,
         useMemo: (fn) => fn(),
@@ -203,6 +218,90 @@ test('every toast the panel can show has copy in both languages', () => {
 
   for (const key of used) assert.ok(definedZh.has(key), `${key} is used and has copy`)
   for (const key of definedZh) assert.ok(used.has(key), `${key} has copy and is used somewhere`)
+})
+
+test('the panel header offers a select-all box, and it reflects the selection', () => {
+  const status = (files) => ({
+    ok: true,
+    repoRoot: 'C:/repo',
+    repoName: 'repo',
+    branch: { head: 'main', detached: false, ahead: 0, behind: 0, upstream: 'origin/main' },
+    head: { oid: 'a'.repeat(40), short: 'aaaaaaa', subject: 'init' },
+    remotes: ['origin'],
+    lastFetchAt: null,
+    autoFetchMs: 0,
+    summaryScript: '',
+    files,
+    counts: { files: files.length, staged: files.filter((f) => f.staged).length, partial: 0, conflicted: 0, additions: 0, deletions: 0 },
+    primary: 'fetch',
+    workspacePath: 'C:/repo',
+  })
+
+  const file = (path, staged) => ({
+    path,
+    index: 'M',
+    worktree: '.',
+    kind: 'modified',
+    untracked: false,
+    ignored: false,
+    conflicted: false,
+    staged,
+    partial: false,
+    added: 1,
+    deleted: 0,
+    binary: false,
+  })
+
+  // Every `useState` in GitBody, seeded: `state` first, then `phase`.
+  const renderWith = (files) => {
+    const bundle = loadBundle([status(files), 'ready'])
+    const { ctx, seats } = createCtx()
+    bundle.apply(ctx)
+    const body = seats.find((seat) => seat.name === 'sidebar.right.pane.tab' && seat.key === 'dsh-gitbar-lite/git')
+    return body.component(bodyProps(ctx))
+  }
+
+  const tree0 = renderWith([file('a.txt', false)])
+
+  // The React stub keeps `h(type, props, [children])` as a single array child
+  // rather than flattening it, so the walk has to descend into arrays too.
+  const findSelectAll = (node) => {
+    if (node === null || node === undefined) return null
+    if (Array.isArray(node)) {
+      for (const child of node) {
+        const found = findSelectAll(child)
+        if (found !== null) return found
+      }
+      return null
+    }
+    if (typeof node !== 'object') return null
+    if (node.props?.['data-gitbar-selectall'] !== undefined) return node
+    for (const child of node.children ?? []) {
+      const found = findSelectAll(child)
+      if (found !== null) return found
+    }
+    return null
+  }
+
+  const none = findSelectAll(renderWith([file('a.txt', false), file('b.txt', false)]))
+  assert.ok(none !== null, 'the header tick is rendered')
+  assert.equal(none.props['data-gitbar-selectall'], 'none')
+  assert.equal(none.props['aria-checked'], 'false')
+  assert.equal(none.props.disabled, false, 'it is clickable when there is something to tick')
+
+  const some = findSelectAll(renderWith([file('a.txt', true), file('b.txt', false)]))
+  assert.equal(some.props['data-gitbar-selectall'], 'some')
+  assert.equal(some.props['aria-checked'], 'mixed', 'a partial selection reads as mixed')
+
+  const all = findSelectAll(renderWith([file('a.txt', true), file('b.txt', true)]))
+  assert.equal(all.props['data-gitbar-selectall'], 'all')
+  assert.equal(all.props['aria-checked'], 'true')
+
+  // Nothing changed means nothing to tick, so the control is disabled rather
+  // than offering to do something it cannot.
+  const empty = findSelectAll(renderWith([]))
+  assert.equal(empty.props['data-gitbar-selectall'], 'empty')
+  assert.equal(empty.props.disabled, true)
 })
 
 test('each body also renders when its tab is hidden and when it has no session', () => {

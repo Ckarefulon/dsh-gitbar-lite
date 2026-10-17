@@ -563,6 +563,30 @@ describe('pure helpers', () => {
     assert.equal(internals.hasConflict({ counts: { conflicted: 1 }, files: [] }), true)
   })
 
+  it('decide what the select-all box shows', () => {
+    const file = (path, staged, conflicted = false) => ({ path, staged, conflicted })
+    const state = (files) => ({ counts: {}, files })
+
+    // Nothing selectable at all: the box cannot do anything, so it is disabled.
+    assert.equal(internals.selectionState(state([])), 'empty')
+    assert.equal(internals.selectionState(null), 'empty')
+    assert.equal(internals.selectionState(state([file('c.txt', false, true)])), 'empty')
+
+    assert.equal(internals.selectionState(state([file('a.txt', false)])), 'none')
+    assert.equal(internals.selectionState(state([file('a.txt', true)])), 'all')
+    // The mixed state is the one a two-state box could not express without
+    // either lying about the selection or throwing it away.
+    assert.equal(internals.selectionState(state([file('a.txt', true), file('b.txt', false)])), 'some')
+
+    // A conflicted file is not selectable, so it must not count in either
+    // direction: one ticked file beside one conflict is "all", not "some",
+    // because ticking the conflict is the one thing the button must never do.
+    assert.equal(internals.selectionState(state([file('a.txt', true), file('c.txt', false, true)])), 'all')
+    assert.equal(internals.selectionState(state([file('c.txt', true, true)])), 'empty')
+
+    assert.deepEqual(internals.selectablePaths(state([file('a.txt', false), file('c.txt', false, true)])), ['a.txt'])
+  })
+
   it('decide the commit buttons, and say why not', () => {
     const ready = { counts: { conflicted: 0 }, files: [{ staged: true, conflicted: false }] }
     assert.deepEqual(internals.commitReadiness(ready, 'summary', null), { canCommit: true, reasonKey: null })
