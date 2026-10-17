@@ -40,10 +40,14 @@ import { readFileSync } from 'node:fs'
  *
  * @param {unknown[]} [initial] the values `useState` returns, in call order
  */
-function loadBundle(initial = []) {
+function loadBundle(seeds = []) {
   const source = readFileSync(new URL('../lib/client.js', import.meta.url), 'utf8')
 
   let stateIndex = 0
+  let initial = seeds
+  // The hook calls made by one render, in order. `renderBody` resets it before
+  // each render and compares lengths, which is the check React itself makes.
+  let hookLog = null
 
   const styleElements = []
   globalThis.window = globalThis
@@ -63,17 +67,42 @@ function loadBundle(initial = []) {
 
   const require = (name) => {
     if (name === 'react') {
+      // Every hook is recorded so a render can be checked for a stable hook count.
+      // Without that, a hook below an early return is invisible to this stub: it
+      // has no memory, so it happily answers a `useCallback` that React itself
+      // would reject as "rendered more hooks than during the previous render" —
+      // and that rejection blanks the panel. This is how 0.5.4 shipped broken
+      // with every test green.
+      const record = () => {
+        if (hookLog !== null) hookLog.push(1)
+      }
       return {
         createElement: (type, props, ...children) => ({ type, props, children }),
         useState: (fallback) => {
+          record()
           const value = stateIndex < initial.length ? initial[stateIndex] : fallback
           stateIndex += 1
           return [value, () => {}]
         },
-        useRef: (initialRef) => ({ current: initialRef }),
-        useEffect: () => {},
-        useCallback: (fn) => fn,
-        useMemo: (fn) => fn(),
+        useRef: (initialRef) => {
+          record()
+          return { current: initialRef }
+        },
+        useEffect: () => {
+          record()
+        },
+        useCallback: (fn) => {
+          record()
+          return fn
+        },
+        useMemo: (fn) => {
+          record()
+          return fn()
+        },
+        useContext: (value) => {
+          record()
+          return value
+        },
         Fragment: 'Fragment',
       }
     }
@@ -85,7 +114,48 @@ function loadBundle(initial = []) {
 
   assert.ok(registered !== null, 'the bundle registered itself with the module loader')
   assert.equal(typeof registered.factory, 'function', 'and it registered a factory')
-  return registered.factory(require)
+
+  const bundle = registered.factory(require)
+
+  /**
+   * Render one component, and check it used the same number of hooks as the last
+   * render of it.
+   *
+   * This is the check the plain stub could not make, and its absence let a
+   * `useCallback` below an early return ship in 0.5.4: the loading render skipped
+   * it, the loaded render called it, and React blanked the panel. Comparing
+   * counts across two renders of the same component is exactly what React does.
+   *
+   * @param {string} label identifies the component in the failure message
+   * @param {Function} component
+   * @param {object} props
+   */
+  const counts = new Map()
+  const renderChecked = (label, component, props) => {
+    hookLog = []
+    const tree = component(props)
+    const count = hookLog.length
+    hookLog = null
+
+    const first = counts.get(label)
+    if (first === undefined) {
+      counts.set(label, count)
+    } else if (first !== count) {
+      throw new Error(
+        `${label} called ${count} hooks on this render and ${first} on the previous one — ` +
+          'a hook below an early return. React rejects this and blanks the panel.',
+      )
+    }
+    return tree
+  }
+
+  /** Point `useState` at a different set of initial values for the next render. */
+  const seed = (next) => {
+    initial = next
+    stateIndex = 0
+  }
+
+  return { internals: bundle.internals, apply: bundle.apply, renderChecked, seed }
 }
 
 /** A ctx shaped like the host's, recording what the bundle registers. */
@@ -252,16 +322,23 @@ test('the panel header offers a select-all box, and it reflects the selection', 
     binary: false,
   })
 
-  // Every `useState` in GitBody, seeded: `state` first, then `phase`.
+  // One bundle, two renders of the same component. The loading render comes
+  // first on purpose: it is the one that skips every hook below the early return,
+  // so comparing the two hook counts is what catches a hook that only exists on
+  // the loaded path — which is the bug that blanked the panel in 0.5.4.
   const renderWith = (files) => {
-    const bundle = loadBundle([status(files), 'ready'])
+    const bundle = loadBundle()
     const { ctx, seats } = createCtx()
     bundle.apply(ctx)
     const body = seats.find((seat) => seat.name === 'sidebar.right.pane.tab' && seat.key === 'dsh-gitbar-lite/git')
-    return body.component(bodyProps(ctx))
-  }
+    const props = bodyProps(ctx)
 
-  const tree0 = renderWith([file('a.txt', false)])
+    bundle.seed([null, 'loading'])
+    bundle.renderChecked('GitBody', body.component, props)
+
+    bundle.seed([status(files), 'ready'])
+    return bundle.renderChecked('GitBody', body.component, props)
+  }
 
   // The React stub keeps `h(type, props, [children])` as a single array child
   // rather than flattening it, so the walk has to descend into arrays too.
