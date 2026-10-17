@@ -29,7 +29,7 @@
  */
 
 import { spawn } from 'node:child_process'
-import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 
@@ -1052,7 +1052,7 @@ async function main() {
 
   // --------------------------------------------------- S21: putting a discard back
 
-  section('S21 a discard can be put back, but only while the tree still matches')
+  section('S21 a discard can be put back by replaying its diff')
   {
     const workspace = await freshRepo('repo-restore')
     const stateDir = join(scratch, 'state-21')
@@ -1068,84 +1068,77 @@ async function main() {
       hardDelete: false,
     })
     eq('the discard is ok', discarded.body.ok, true)
-
-    // Everything is back where the discard put it: the edits are gone and the
-    // untracked file with them.
     eq('the tracked edit is gone', (await readFile(join(workspace, 'a.txt'), 'utf8')).includes('KEEP THIS EDIT'), false)
-    const freshGone = await readFile(join(workspace, 'fresh untracked.txt'), 'utf8').then(
-      () => false,
-      () => true,
+    eq(
+      'and the untracked file with it',
+      await readFile(join(workspace, 'fresh untracked.txt'), 'utf8').then(
+        () => false,
+        () => true,
+      ),
+      true,
     )
-    eq('the untracked file is gone', freshGone, true)
+
+    // The archive is one diff and nothing else: no second copy of the content.
+    const trashDir = join(stateDir, 'trash')
+    const archived = (await readdir(trashDir)).filter((name) => name !== 'index.json')
+    eq('one file is archived per entry', archived.filter((name) => name.endsWith('.diff')).length, 1)
+    eq('and nothing else is written beside it', archived.filter((name) => !name.endsWith('.diff')), [])
 
     const listed = await harness.call(ACTIONS.TRASH_LIST, { sessionId: SESSION })
     const entry = listed.body.entries[0]
     eq('one entry is archived', listed.body.entries.length, 1)
     eq('and it is offered for restore', entry.restorable?.ok, true)
 
-    // The whole point of the rule: touching a file after the discard takes the
-    // offer away, because writing back would destroy the newer work.
+    // Touching a file after the discard withdraws the offer, because replaying
+    // the diff would land on a file that is no longer where it was cut.
     await put(join(workspace, 'a.txt'), 'one\ntwo\nthree\nA NEWER EDIT\n')
-    const touched = await harness.call(ACTIONS.TRASH_LIST, { sessionId: SESSION })
-    eq('touching a file it archived withdraws the offer', touched.body.entries[0].restorable?.ok, false)
-    eq('and says why', touched.body.entries[0].restorable?.reason, 'changed')
-
-    // Restoring now is refused outright, with nothing written.
+    eq('touching a file it archived withdraws the offer', (await harness.call(ACTIONS.TRASH_LIST, { sessionId: SESSION })).body.entries[0].restorable?.ok, false)
+    eq('and says why', (await harness.call(ACTIONS.TRASH_LIST, { sessionId: SESSION })).body.entries[0].restorable?.reason, 'changed')
     await harness.expectFailure(ACTIONS.TRASH_RESTORE, { sessionId: SESSION, id: entry.id }, ERROR_CODES.TRASH_NOT_RESTORABLE)
     eq('and the newer edit is still there', (await readFile(join(workspace, 'a.txt'), 'utf8')).includes('A NEWER EDIT'), true)
 
-    // Undo the touching: put the tree back the way the discard left it, and the
-    // offer returns.
+    // Put the tree back the way the discard left it and the offer returns.
     await put(join(workspace, 'a.txt'), 'one\ntwo\nthree\n')
-    const again = await harness.call(ACTIONS.TRASH_LIST, { sessionId: SESSION })
-    eq('the offer returns once the tree matches again', again.body.entries[0].restorable?.ok, true)
+    eq('the offer returns once the tree matches again', (await harness.call(ACTIONS.TRASH_LIST, { sessionId: SESSION })).body.entries[0].restorable?.ok, true)
 
     const restored = await harness.call(ACTIONS.TRASH_RESTORE, { sessionId: SESSION, id: entry.id })
     eq('restoring is ok', restored.body.ok, true)
-    eq('three files were put back', restored.body.restored.restored.length, 3)
-    eq('the edit is back', (await readFile(join(workspace, 'a.txt'), 'utf8')).includes('KEEP THIS EDIT'), true)
-    eq('the untracked file is back', (await readFile(join(workspace, 'fresh untracked.txt'), 'utf8')), 'brand new content\n')
-    eq('and so is the other edit', (await readFile(join(workspace, 'docs', 'guide.md'), 'utf8')).includes('## edited'), true)
+    eq('all three files are named', restored.body.restored.restored.length, 3)
+    // The bytes, not just the fact: `git apply` reproduced exactly what was there.
+    eq('the edit is back byte for byte', await readFile(join(workspace, 'a.txt'), 'utf8'), 'one\ntwo\nthree\nKEEP THIS EDIT\n')
+    eq('the untracked file is recreated', await readFile(join(workspace, 'fresh untracked.txt'), 'utf8'), 'brand new content\n')
+    eq('and the other edit too', await readFile(join(workspace, 'docs', 'guide.md'), 'utf8'), '# guide\n## edited\n')
 
-    // The restored change is staged, because that is the tick the user had when
-    // they asked to discard: restoring should not hand back an empty panel.
-    const status = await harness.call(ACTIONS.STATUS, { sessionId: SESSION })
-    eq('the restored files are staged', status.body.counts.staged, 3)
-    const staged = new Set(status.body.files.filter((file) => file.staged === true).map((file) => file.path))
-    ok('and git agrees they are staged', (await realStatus(workspace)).every((record) => record[0] === 'A' || record[0] === 'M'), [
-      ...staged,
-    ])
-
-    // Restoring a second time is refused: the tree no longer matches the archive,
-    // so the rule protects against writing the same content over itself.
+    // Replaying it twice would double the change, so the second attempt is
+    // refused by the same check that allowed the first.
     await harness.expectFailure(ACTIONS.TRASH_RESTORE, { sessionId: SESSION, id: entry.id }, ERROR_CODES.TRASH_NOT_RESTORABLE)
 
-    // An archive with no content at all -- an entry whose `.content.json` was
-    // deleted -- is listed and refuses politely rather than half-restoring.
-    const bare = await freshRepo('repo-restore-bare')
-    const bareHarness = createHarness({ workspacePath: bare, stateDir: join(scratch, 'state-21b') })
-    await put(join(bare, 'a.txt'), 'one\ntwo\nthree\nGONE\n')
-    await bareHarness.call(ACTIONS.DISCARD, { sessionId: SESSION, paths: ['a.txt'], hardDelete: false })
-    const bareList = await bareHarness.call(ACTIONS.TRASH_LIST, { sessionId: SESSION })
-    const bareId = bareList.body.entries[0].id
-    // Delete *this* entry's content file. (A first draft deleted the one belonging
-    // to the other repository's entry, which of course changed nothing here.)
-    await rm(join(scratch, 'state-21b', 'trash', `${bareId}.content.json`), { force: true })
-    eq('an entry whose content file is gone is not offered', (await bareHarness.call(ACTIONS.TRASH_LIST, { sessionId: SESSION })).body.entries[0].restorable?.reason, 'no-content')
-    await bareHarness.expectFailure(ACTIONS.TRASH_RESTORE, { sessionId: SESSION, id: bareId }, ERROR_CODES.TRASH_NOT_RESTORABLE)
+    // --- the reasons a diff cannot be replayed -----------------------------
 
-    // An archive written before the feature existed has no `content` key at all,
-    // and says so in those words rather than "no content": one of those the user
-    // can act on, the other only explains itself. Take the entry above and strip
-    // its key, rather than making a new one — the repository is already clean.
-    const legacyIndex = JSON.parse(await readFile(join(scratch, 'state-21b', 'trash', 'index.json'), 'utf8'))
-    for (const record of legacyIndex.entries) delete record.content
-    await writeFile(join(scratch, 'state-21b', 'trash', 'index.json'), `${JSON.stringify(legacyIndex, null, 2)}\n`, 'utf8')
+    // A binary change has no content in its diff, only the words saying so.
+    const binary = await freshRepo('repo-restore-binary')
+    const binaryHarness = createHarness({ workspacePath: binary, stateDir: join(scratch, 'state-21b') })
+    await put(join(binary, 'blob.bin'), '\u0000\u0001binary\n')
+    await binaryHarness.call(ACTIONS.DISCARD, { sessionId: SESSION, paths: ['blob.bin'], hardDelete: false })
     eq(
-      'an entry with no content key at all reads as legacy',
-      (await bareHarness.call(ACTIONS.TRASH_LIST, { sessionId: SESSION })).body.entries[0].restorable?.reason,
-      'legacy',
+      'a binary entry says its diff cannot be replayed',
+      (await binaryHarness.call(ACTIONS.TRASH_LIST, { sessionId: SESSION })).body.entries[0].restorable?.reason,
+      'binary',
     )
+
+    // An archive whose blob was deleted by hand has nothing to apply.
+    const gone = await freshRepo('repo-restore-gone')
+    const goneHarness = createHarness({ workspacePath: gone, stateDir: join(scratch, 'state-21c') })
+    await put(join(gone, 'a.txt'), 'one\ntwo\nthree\nX\n')
+    await goneHarness.call(ACTIONS.DISCARD, { sessionId: SESSION, paths: ['a.txt'], hardDelete: false })
+    const goneEntry = (await goneHarness.call(ACTIONS.TRASH_LIST, { sessionId: SESSION })).body.entries[0]
+    await rm(join(scratch, 'state-21c', 'trash', `${goneEntry.id}.diff`), { force: true })
+    eq(
+      'an entry whose diff file is gone is not offered',
+      (await goneHarness.call(ACTIONS.TRASH_LIST, { sessionId: SESSION })).body.entries[0].restorable?.reason,
+      'no-diff',
+    )
+    await goneHarness.expectFailure(ACTIONS.TRASH_RESTORE, { sessionId: SESSION, id: goneEntry.id }, ERROR_CODES.TRASH_NOT_RESTORABLE)
   }
 
   // -------------------------------------------------------- S22: the summary script

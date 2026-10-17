@@ -175,8 +175,9 @@ you can judge for yourself.
 Every field is volatile, so a change on the settings page takes effect without a restart.
 
 **Where state lives**: `<DSH_HOME>/dsh-gitbar-lite/` (falling back to `~/.dsh`) — `bindings.json` (workspace →
-repository), `prefs.json` (the two remembered choices), `trash/index.json` plus `trash/<id>.diff`, and
-`trash/<id>.content.json` (the raw contents a restore needs). Every write goes through a temp file and a rename, so a
+repository), `prefs.json` (the two remembered choices), and `trash/index.json` plus `trash/<id>.diff`. The trash keeps
+**that one diff and nothing else** — no second copy of the file: restoring replays it with `git apply`, so the record the
+panel shows and the thing a restore needs are the same bytes. Every write goes through a temp file and a rename, so a
 crash mid-write cannot truncate a file.
 
 ## How it works
@@ -255,8 +256,10 @@ judgement should be revisited; it is recorded in `docs/CONTRACT.md`.
 - Fetch runs `git fetch --prune`, which deletes remote-tracking refs for branches the remote no longer has (matching
   GitHub Desktop).
 - Your commit hooks run. A hook that blocks is your hook; `timeoutMs` is the only backstop.
-- The trash keeps **diffs, not files**. Recovery means applying the archived diff by hand — a restore button was
-  agreed out of scope.
+- The trash keeps **that one diff**. Restoring replays it with `git apply`, which reproduces the exact bytes (verified
+  with CRLF, no trailing newline, unicode, and trailing spaces). It replays only while the working tree is still what
+  the discard left: if HEAD moved, or the files were touched since, the button greys out and says which — otherwise a
+  stale change would land on top of newer work.
 - Binary content is not archived; the diff says `Binary files … differ`. That is honest, and it is not a backup.
 - An untracked file larger than `maxFileBytes` is deleted with only a note in the archive, and the confirmation box
   does not yet warn about that specifically.

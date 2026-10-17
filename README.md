@@ -163,9 +163,9 @@ echo "Bumped the patch version."
 每个字段都是 volatile 的，所以在设置页改了立刻生效、不用重启。
 
 **状态存在哪**：`<DSH_HOME>/dsh-gitbar-lite/`（没有 `DSH_HOME` 就回落 `~/.dsh`）——
-`bindings.json`（工作区 → 仓库）、`prefs.json`（那两个勾选偏好）、`trash/index.json` + `trash/<id>.diff` +
-`trash/<id>.content.json`（恢复用的原始内容）。
-都是先写临时文件再 rename，所以写到一半崩了也不会把文件截断。
+`bindings.json`（工作区 → 仓库）、`prefs.json`（那两个勾选偏好）、`trash/index.json` + `trash/<id>.diff`。
+**回收站只存那一个 diff，不额外留一份文件副本**：恢复时用 `git apply` 把它重放回去，
+那既是面板显示的记录，也是回放所需的全部内容。都是先写临时文件再 rename，所以写到一半崩了也不会把文件截断。
 
 ## 工作原理
 
@@ -231,7 +231,9 @@ npm run test:live # 探测一个正在运行的 DSH（不在 npm test 里，需�
 - 一个工作区绑一个仓库，一个仓库一次推一个远端（有 `origin` 就优先它）。不做子模块、worktree、分支切换、历史列表、stash。
 - Fetch 用的是 `git fetch --prune`，会删掉远端已经删除的分支对应的 remote-tracking ref（和 GitHub Desktop 一致）。
 - 提交会跑你自己的 commit hook。卡住的 hook 是你自己的 hook；`timeoutMs` 是唯一的兜底。
-- 回收站存的是 **diff，不是文件**。恢复要自己手工 apply 那份 diff——「恢复按钮」是我们说好不做的。
+- 回收站只存那一个 **diff**。恢复是把它 `git apply` 回去，所以能恢复出一模一样的字节（CRLF、无尾换行、
+  unicode、行尾空格都验过）。但它只能在「工作区还是舍弃后的样子」时重放：HEAD 变了，或那些文件又被改过，
+  按钮就变灰并说明原因——否则就是拿旧改动盖掉新改动。
 - 二进制文件不归档内容，只记一句 `Binary files … differ`。这很诚实，但那不是备份。
 - 超过 `maxFileBytes` 的未跟踪文件被舍弃时，归档里只有一段说明。确认框目前不会特别提示这一点。
 - 「舍弃未跟踪文件」是直接删除（不进系统回收站）——这是说好的设计：插件自己的回收站承接它，不勾「彻底删除」时能看到内容。

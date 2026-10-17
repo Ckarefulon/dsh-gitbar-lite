@@ -533,13 +533,18 @@ describe('pure helpers', () => {
 
   it('explain why a trash entry cannot be put back', () => {
     const t = (key) => key
+    // The tree moved on in a way that would lose work.
     assert.equal(internals.restoreReasonText(t, 'changed'), 'trash.restoreChanged')
-    assert.equal(internals.restoreReasonText(t, 'no-content'), 'trash.restoreNoContent')
+    assert.equal(internals.restoreReasonText(t, 'moved'), 'trash.restoreMoved')
+    // The entry is not the right one for this repository.
     assert.equal(internals.restoreReasonText(t, 'other-repo'), 'trash.restoreOtherRepo')
     assert.equal(internals.restoreReasonText(t, 'no-repo'), 'trash.restoreNoRepo')
-    // An unknown reason still gets the honest general sentence, not a blank line.
-    assert.equal(internals.restoreReasonText(t, 'something-new'), 'trash.restoreNoContent')
-    assert.equal(internals.restoreReasonText(t, undefined), 'trash.restoreNoContent')
+    // The diff itself cannot be replayed.
+    assert.equal(internals.restoreReasonText(t, 'truncated'), 'trash.restoreTruncated')
+    assert.equal(internals.restoreReasonText(t, 'binary'), 'trash.restoreBinary')
+    // Anything unrecognised still says something true rather than nothing.
+    assert.equal(internals.restoreReasonText(t, 'something-new'), 'trash.restoreNoDiff')
+    assert.equal(internals.restoreReasonText(t, undefined), 'trash.restoreNoDiff')
   })
 
   it('count only staged, non-conflicted files as committable', () => {
