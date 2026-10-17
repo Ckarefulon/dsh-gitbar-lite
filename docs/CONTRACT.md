@@ -86,6 +86,8 @@ the host sends is already user-facing (Chinese), and the browser half localises
 | `trashDiff` | `id` | `{ entry, text }` |
 | `trashDelete` | `id` | `{ removed }` |
 | `trashClear` | `sessionId`, `all?` | `{ removed }` |
+| `runScript` | `sessionId` | `{ ran, exitCode?, stdout?, stderr? }` — nothing is thrown for a non-zero exit |
+| `saveScript` | `sessionId`, `script` | `{ summaryScript, script }` — an empty `script` clears it |
 | `prefs` | `sessionId`, `trashHardDelete?`, `trashShowAllRepos?` | `{ prefs }` |
 
 `paths: null` on `discard` means *every changed file*; an explicit array means
@@ -105,9 +107,14 @@ archive.
             staged, partial, added, deleted, binary, synthesized? }],
   counts: { files, staged, partial, conflicted, additions, deletions },
   primary: 'push' | 'publish' | 'fetch',
-  prefs: { trashHardDelete, trashShowAllRepos }
+  prefs: { trashHardDelete, trashShowAllRepos },
+  summaryScript
 }
 ```
+
+`summaryScript` is the stored script for this repository, falling back to the
+`summaryScript` plugin setting, and `''` when neither exists. There is no built-in
+starting script: the panel shows exactly this value, so `''` is an empty editor.
 
 `head` is the commit a discarded diff would be taken *against*, which is why the
 trash can say "against `a1b2c3d` *init*" and mean it.
@@ -139,6 +146,7 @@ the same trap `dsh-tailscale-remote` documents.
 ```
 bindings.json   { version, bindings: { <canonical workspace path>: { repoRoot, workspacePath, updatedAt } } }
 prefs.json      { version, trashHardDelete, trashShowAllRepos }
+scripts.json    { version, scripts: { <canonical repository path>: script } }
 trash/index.json  { version, entries: [ ... ] }
 trash/<id>.diff   the archived diff, one file per discard operation
 ```

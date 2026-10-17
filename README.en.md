@@ -133,9 +133,11 @@ The order is fixed and cannot be swapped:
 ### Filling the Summary from a script
 
 **The script is written in the panel.** Below the Description field there is a "script that fills the Summary" toggle;
-open it and you get an editor — write it, save it, run it, all without leaving the sidebar. It also runs by itself when
-the panel regains focus: leave the sidebar open, go and let the agent work in the conversation, come back, and the
-Summary is already there. Once a script exists, a sparkle button appears next to the Summary field as a one-click path.
+open it and you get an editor — write it, save it, run it, all without leaving the sidebar. **The editor starts empty**
+and nothing is ever seeded into it (the placeholder shows an example); saving, running and refreshing all say so in a
+brief notice, so there is no guessing whether the press landed. It also runs by itself when the panel regains focus:
+leave the sidebar open, go and let the agent work in the conversation, come back, and the Summary is already there.
+Once a script exists, a sparkle button appears next to the Summary field as a one-click path.
 
 It runs with the **repository root as its working directory** and is fed nothing on stdin, so "read the top version out
 of the CHANGELOG" is:
@@ -162,8 +164,8 @@ you can judge for yourself.
 
 
 > The script is stored **per repository** (keyed by its path, in `<DSH_HOME>/dsh-gitbar-lite/scripts.json`), so one
-> project never runs another one's script. A repository that has never had one opens the editor seeded with the
-> built-in default — the changelog lookup shown above.
+> project never runs another one's script. A repository that has never had one opens an **empty** editor — no built-in
+> script is filled in, the placeholder is only an example — and an emptied script stays empty.
 
 ## Configuration
 

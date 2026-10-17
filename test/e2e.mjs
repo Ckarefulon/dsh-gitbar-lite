@@ -1206,12 +1206,16 @@ async function main() {
 
     const script = "grep -m1 '^## ' CHANGELOG.md | sed 's/^## //'"
     const harness = createHarness({ workspacePath: workspace, stateDir })
-    eq('a first-time panel sees no script', (await harness.call(ACTIONS.STATUS, { sessionId: SESSION })).body.summaryScript, '')
-    eq('and knows it is not saved', (await harness.call(ACTIONS.STATUS, { sessionId: SESSION })).body.summaryScriptSaved, false)
+    const first = await harness.call(ACTIONS.STATUS, { sessionId: SESSION })
+    eq('a first-time panel sees no script', first.body.summaryScript, '')
+    // No built-in starting point either: the panel shows what the host reports,
+    // and the host reports nothing. There used to be a flag on the wire to tell
+    // "never saved" apart from "cleared"; with nothing seeded the two are the
+    // same value, so it is gone.
+    eq('and the host carries no flag to seed one from', first.body.summaryScriptSaved, undefined)
 
     const saved = await harness.call(ACTIONS.SAVE_SCRIPT, { sessionId: SESSION, script })
     eq('the script is stored', saved.body.summaryScript, script)
-    eq('and marked as saved', saved.body.summaryScriptSaved, true)
     eq('the status reports it back', (await harness.call(ACTIONS.STATUS, { sessionId: SESSION })).body.summaryScript, script)
 
     const ran = await harness.call(ACTIONS.RUN_SCRIPT, { sessionId: SESSION })
@@ -1254,7 +1258,11 @@ async function main() {
     await harness.call(ACTIONS.SAVE_SCRIPT, { sessionId: SESSION, script: '' })
     const cleared = await harness.call(ACTIONS.STATUS, { sessionId: SESSION })
     eq('the box can be emptied', cleared.body.summaryScript, '')
-    eq('and that is recorded as "not saved" rather than lost', cleared.body.summaryScriptSaved, false)
+    eq(
+      'and a second look puts nothing back in it',
+      (await harness.call(ACTIONS.STATUS, { sessionId: SESSION })).body.summaryScript,
+      '',
+    )
   }
 
   console.log('')
