@@ -183,6 +183,28 @@ test('every seat renders without throwing', () => {
   }
 })
 
+test('every toast the panel can show has copy in both languages', () => {
+  const source = readFileSync(new URL('../lib/client.js', import.meta.url), 'utf8')
+
+  // Two failures this catches, both of which happened:
+  //   * copy written and never called — three trash toasts were added and never
+  //     wired, so a restore said nothing at all;
+  //   * a call site with no copy — the user sees the raw key.
+  const used = new Set([...source.matchAll(/\bt\('(toast\.[a-zA-Z]+)'/g)].map((match) => match[1]))
+
+  const bundle = loadBundle()
+  const zh = bundle.internals.ZH
+  const en = bundle.internals.EN
+
+  const definedZh = new Set(Object.keys(zh).filter((key) => key.startsWith('toast.')))
+  const definedEn = new Set(Object.keys(en).filter((key) => key.startsWith('toast.')))
+
+  assert.deepEqual([...definedZh].sort(), [...definedEn].sort(), 'both languages carry the same toast keys')
+
+  for (const key of used) assert.ok(definedZh.has(key), `${key} is used and has copy`)
+  for (const key of definedZh) assert.ok(used.has(key), `${key} has copy and is used somewhere`)
+})
+
 test('each body also renders when its tab is hidden and when it has no session', () => {
   const bundle = loadBundle()
   const { ctx, seats } = createCtx()
