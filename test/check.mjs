@@ -361,6 +361,21 @@ check('.gitattributes normalizes to LF, which the bundle needs to stay byte-stab
 check('.gitignore does not exclude the hand-written bundle', !/^\s*lib\//m.test(read('.gitignore')))
 check('.gitignore excludes the unit-test scratch directory', /test\/\.scratch\//.test(read('.gitignore')))
 
+// Every test file is named by the `test` script. A suite that exists and is not
+// run is worse than no suite: it reads as coverage, and the workflow that runs
+// `npm test` before publishing reports green without it. This is how the focus
+// suite — the one that covers behaviour which shipped broken twice — could have
+// been written and then quietly left out.
+{
+  const suites = readdirSync(join(root, 'test'))
+    .filter((file) => /\.test\.mjs$/.test(file))
+    .sort()
+  const script = manifest.scripts.test
+  const missing = suites.filter((file) => !script.includes(`test/${file}`))
+  eq('the test script names every suite in test/', missing, [])
+  check('  -> and there is more than one suite to name', suites.length > 1)
+}
+
 // Every piece of artwork is rendered by something. A glyph that is defined and
 // never placed is the kind of thing that survives a refactor invisibly: it costs
 // bytes in a hand-written bundle, and its presence suggests an icon that some
