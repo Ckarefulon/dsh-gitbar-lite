@@ -26,7 +26,7 @@ The column is narrow (300px minimum, and a narrow viewport makes it full-screen)
 | Context button | **Push** when local commits are unpushed, **Publish** when the branch has no upstream, **Fetch** otherwise |
 | Fetch before push | A push runs `git fetch --prune` first, then pushes. **Being behind refuses the push** and says by how many — git never merges on a push, so it would be rejected either way, and knowing before the attempt beats being told after. A failed fetch does not block the push |
 | Automatic fetch | GitHub Desktop's rhythm while the panel is visible and the repository has a remote: an hour by default, each tick re-asking whether to run, the next scheduled from the *completion* of the last, with a random skew so panels do not sync up. The pace is `autoFetchMs` (`0` to disable), and "was it fetched recently" is answered by `FETCH_HEAD`'s mtime — so a fetch in a terminal counts too |
-| Panel regains focus | The file list refreshes when the panel becomes visible again; if a script is configured, it runs and fills the Summary |
+| Panel regains focus | **Every time the panel is looked at again** the file list is re-read and the script fills the Summary: switching back to this tab, clicking into the panel from the conversation, returning to the DSH window, or coming back to the browser tab. A Summary you typed is never replaced — only an empty one, or one that still holds what the script itself wrote, is filled |
 | Discard | One file or all of them; the diff is archived *before* anything is restored, and the confirmation offers "delete for good" |
 | Trash | Its own tab. Every discard keeps a diff, recorded **against the commit it was taken from** (`abc1234 initial commit`) |
 | Diff preview | Double-click a file, or a trash entry, to open a diff tab in the column — **one tab, ever**, re-navigated in place |
@@ -135,9 +135,11 @@ The order is fixed and cannot be swapped:
 **The script is written in the panel.** Below the Description field there is a "script that fills the Summary" toggle;
 open it and you get an editor — write it, save it, run it, all without leaving the sidebar. **The editor starts empty**
 and nothing is ever seeded into it (the placeholder shows an example); saving, running and refreshing all say so in a
-brief notice, so there is no guessing whether the press landed. It also runs by itself when the panel regains focus:
-leave the sidebar open, go and let the agent work in the conversation, come back, and the Summary is already there.
-Once a script exists, a sparkle button appears next to the Summary field as a one-click path.
+brief notice, so there is no guessing whether the press landed. It also runs by itself **every time the panel is looked at again** (switching back to this tab, clicking into the
+panel from the conversation, or returning to the DSH window): leave the sidebar open, go and let the agent work in the
+conversation, come back, and the Summary is already there. A Summary **you** typed is not overwritten — use the sparkle
+button when you want it refreshed anyway. Once a script exists, a sparkle button appears next to the Summary field as a
+one-click path.
 
 It runs with the **repository root as its working directory** and is fed nothing on stdin, so "read the top version out
 of the CHANGELOG" is:
