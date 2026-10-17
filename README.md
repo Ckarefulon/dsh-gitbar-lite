@@ -127,9 +127,9 @@ dsh plugin --profile <你的 profile> remove dsh-gitbar-lite
 
 ### 用脚本填 Summary
 
-Summary 输入框旁边有一个星星按钮（只有配了脚本才出现），点一下就把脚本的输出填进去。**侧边栏面板重新获得焦点时也会自动跑一次**——把侧边栏开着，去对话里让 agent 干活，回来，Summary 已经填好了。
+**脚本就在面板里写**：展开 Description 的小三角，下面有一个「填 Summary 的脚本」按钮，点开是一个编辑框——写进去、保存、运行并填入，全在这里，不用去翻配置文件。**侧边栏面板重新获得焦点时也会自动跑一次**——把侧边栏开着，去对话里让 agent 干活，回来，Summary 已经填好了。配了脚本之后，Summary 框旁边还会多一个星星按钮，一点就填。
 
-脚本写在配置的 `summaryScript` 里，以**仓库根目录为工作目录**运行，不喂任何 stdin。所以「取 CHANGELOG 最顶上的版本号」就是：
+脚本以**仓库根目录为工作目录**运行，不喂任何 stdin。所以「取 CHANGELOG 最顶上的版本号」就是：
 
 ```sh
 grep -m1 '^## ' CHANGELOG.md | sed 's/^## //'
@@ -205,7 +205,7 @@ lib/client.js          浏览器半边：三个 tab 类型 + 面板/回收站/di
 
 ```sh
 npm test          # 单测 + 真 git 的 e2e + 产物自检
-npm run test:e2e  # 只跑真 git 的 e2e（22 个小节，各自造自己的夹具，278 项断言）
+npm run test:e2e  # 只跑真 git 的 e2e（23 个小节，各自造自己的夹具，289 项断言）
 npm run check     # 只用产物自检（不启 DSH 也能发现会让 DSH 起不来的问题）
 npm run test:live # 探测一个正在运行的 DSH（不在 npm test 里，需要跑着应用）
 ```

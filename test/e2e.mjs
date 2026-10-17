@@ -1195,6 +1195,64 @@ async function main() {
 
   // -------------------------------------------------------------------- wrap-up
 
+  // ------------------------------------- S23: the script is edited in the panel
+
+  section('S23 the script can be written from the panel, and the config is only a default')
+  {
+    const workspace = await freshRepo('repo-script-prefs')
+    const stateDir = join(scratch, 'state-23')
+    await put(join(workspace, 'CHANGELOG.md'), '# Changelog\n\n## 2.0.0\n\n- thing\n')
+    await commitAll(workspace, 'changelog')
+
+    // The panel saves the script as a preference; the status then reports it, so
+    // the editor shows what was saved rather than what the config said.
+    const harness = createHarness({ workspacePath: workspace, stateDir })
+    eq('a first-time panel sees no script', (await harness.call(ACTIONS.STATUS, { sessionId: SESSION })).body.summaryScript, '')
+
+    const saved = await harness.call(ACTIONS.PREFS, {
+      sessionId: SESSION,
+      summaryScript: "grep -m1 '^## ' CHANGELOG.md | sed 's/^## //'",
+    })
+    eq('the preference is stored', saved.body.prefs.summaryScript, "grep -m1 '^## ' CHANGELOG.md | sed 's/^## //'")
+    eq(
+      'and the status reports it back',
+      (await harness.call(ACTIONS.STATUS, { sessionId: SESSION })).body.summaryScript,
+      "grep -m1 '^## ' CHANGELOG.md | sed 's/^## //'",
+    )
+
+    // The panel's script is what runs.
+    const ran = await harness.call(ACTIONS.RUN_SCRIPT, { sessionId: SESSION })
+    eq('the saved script runs', ran.body.ran, true)
+    eq('and produces the version', ran.body.stdout.trim(), '2.0.0')
+
+    // A preferences patch that never mentions the script must not clear it.
+    await harness.call(ACTIONS.PREFS, { sessionId: SESSION, trashHardDelete: true })
+    eq(
+      'an unrelated preference does not clear the script',
+      (await harness.call(ACTIONS.STATUS, { sessionId: SESSION })).body.summaryScript,
+      "grep -m1 '^## ' CHANGELOG.md | sed 's/^## //'",
+    )
+
+    // An empty preference falls back to the config: the box being empty must not
+    // silently disable a script the user configured the old way.
+    const configured = createHarness({
+      workspacePath: workspace,
+      stateDir: join(scratch, 'state-23b'),
+      summaryScript: "grep -m1 '^## ' CHANGELOG.md | sed 's/^## //'",
+    })
+    eq(
+      'with no preference the config value is reported',
+      (await configured.call(ACTIONS.STATUS, { sessionId: SESSION })).body.summaryScript,
+      "grep -m1 '^## ' CHANGELOG.md | sed 's/^## //'",
+    )
+    eq('and it runs', (await configured.call(ACTIONS.RUN_SCRIPT, { sessionId: SESSION })).body.stdout.trim(), '2.0.0')
+
+    // Clearing the box clears the stored value.
+    await harness.call(ACTIONS.PREFS, { sessionId: SESSION, summaryScript: '' })
+    eq('the box can be emptied', (await harness.call(ACTIONS.STATUS, { sessionId: SESSION })).body.summaryScript, '')
+    eq('and then there is nothing to run', (await harness.call(ACTIONS.RUN_SCRIPT, { sessionId: SESSION })).body.ran, false)
+  }
+
   console.log('')
   console.log(`${checks} checks, ${failures} failures`)
   if (failures > 0) {

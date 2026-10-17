@@ -132,12 +132,13 @@ The order is fixed and cannot be swapped:
 
 ### Filling the Summary from a script
 
-Next to the Summary field is a sparkle button — rendered only when a script is configured — that fills the Summary from
-the script's output. It also runs by itself when the panel regains focus: leave the sidebar open, go and let the agent
-work in the conversation, come back, and the Summary is already there.
+**The script is written in the panel.** Below the Description field there is a "script that fills the Summary" toggle;
+open it and you get an editor — write it, save it, run it, all without leaving the sidebar. It also runs by itself when
+the panel regains focus: leave the sidebar open, go and let the agent work in the conversation, come back, and the
+Summary is already there. Once a script exists, a sparkle button appears next to the Summary field as a one-click path.
 
-The script goes in the `summaryScript` config field. It runs with the **repository root as its working directory** and
-is fed nothing on stdin, so "read the top version out of the CHANGELOG" is:
+It runs with the **repository root as its working directory** and is fed nothing on stdin, so "read the top version out
+of the CHANGELOG" is:
 
 ```sh
 grep -m1 '^## ' CHANGELOG.md | sed 's/^## //'
@@ -226,7 +227,7 @@ are in [`docs/CONTRACT.md`](./docs/CONTRACT.md).
 
 ```sh
 npm test          # unit + real-git e2e + artifact self-check
-npm run test:e2e  # the real-git suite alone (22 sections building their own fixtures, 278 assertions)
+npm run test:e2e  # the real-git suite alone (23 sections building their own fixtures, 289 assertions)
 npm run check     # artifact self-check alone (catches boot-breaking mistakes without restarting DSH)
 npm run test:live # probe a running DSH (not part of npm test; needs the app running)
 ```

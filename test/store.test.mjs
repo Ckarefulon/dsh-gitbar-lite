@@ -183,25 +183,38 @@ describe('bindings', () => {
 describe('preferences', () => {
   it('starts with the safe answers', async () => {
     const { store } = await makeStore()
-    assert.deepEqual(await store.readPrefs(), { trashHardDelete: false, trashShowAllRepos: false })
+    assert.deepEqual(await store.readPrefs(), { trashHardDelete: false, trashShowAllRepos: false, summaryScript: '' })
   })
 
   it('merges a patch instead of replacing the document', async () => {
     const { store } = await makeStore()
     await store.writePrefs({ trashHardDelete: true })
     await store.writePrefs({ trashShowAllRepos: true })
-    assert.deepEqual(await store.readPrefs(), { trashHardDelete: true, trashShowAllRepos: true })
+    assert.deepEqual(await store.readPrefs(), { trashHardDelete: true, trashShowAllRepos: true, summaryScript: '' })
   })
 
-  it('reads back only booleans, whatever was on disk', async () => {
+  it('reads back only booleans and a string, whatever was on disk', async () => {
     const { store } = await makeStore()
     await mkdir(store.baseDir(), { recursive: true })
     await writeFile(
       store.prefsPath(),
-      JSON.stringify({ version: 1, trashHardDelete: 'yes', trashShowAllRepos: 1 }),
+      JSON.stringify({ version: 1, trashHardDelete: 'yes', trashShowAllRepos: 1, summaryScript: 42 }),
       'utf8',
     )
-    assert.deepEqual(await store.readPrefs(), { trashHardDelete: false, trashShowAllRepos: false })
+    assert.deepEqual(await store.readPrefs(), { trashHardDelete: false, trashShowAllRepos: false, summaryScript: '' })
+  })
+
+  it('keeps the script across a patch that does not mention it', async () => {
+    const { store } = await makeStore()
+    await store.writePrefs({ summaryScript: 'echo hi' })
+    // A patch about something else must not clear it: that is the difference
+    // between "leave it alone" and "set it to empty".
+    await store.writePrefs({ trashHardDelete: true })
+    assert.equal((await store.readPrefs()).summaryScript, 'echo hi')
+
+    // And an explicit empty string does clear it.
+    await store.writePrefs({ summaryScript: '' })
+    assert.equal((await store.readPrefs()).summaryScript, '')
   })
 })
 
