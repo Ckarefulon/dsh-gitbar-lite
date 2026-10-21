@@ -38,7 +38,7 @@
  * needs attention. Run directly (`node test/live.mjs`); it is not part of
  * `npm test`, because it depends on a running application.
  *
- * @module dsh-gitbar-lite/test/live
+ * @module dsh-lite-git/test/live
  */
 
 import { RPC_ROUTE } from '../lib/shared.js'
@@ -47,7 +47,7 @@ const base = (process.env.DSH_WEB_URL ?? 'http://127.0.0.1:19387').replace(/\/+$
 const token = process.env.DSH_AUTH_TOKEN
 const url = `${base}${RPC_ROUTE}${token === undefined || token === '' ? '' : `?token=${encodeURIComponent(token)}`}`
 
-console.log(`dsh-gitbar-lite: probing ${url}`)
+console.log(`dsh-lite-git: probing ${url}`)
 
 let response
 try {
@@ -99,7 +99,7 @@ if (response.status === 404) {
   // Reaching 404 means the fence and the cookie check both passed, so this is a
   // definite answer rather than a guess.
   console.log(`  FAIL: authenticated, but nothing serves ${RPC_ROUTE} at ${base}`)
-  console.log('  That profile does not have dsh-gitbar-lite installed (or the plugin failed to load).')
+  console.log('  That profile does not have dsh-lite-git installed (or the plugin failed to load).')
   process.exit(1)
 }
 

@@ -6,7 +6,7 @@
  * path with a space) — a hand-written approximation of a git format is how a
  * parser bug gets a green test.
  *
- * @module dsh-gitbar-lite/test/parse
+ * @module dsh-lite-git/test/parse
  */
 
 import assert from 'node:assert/strict'

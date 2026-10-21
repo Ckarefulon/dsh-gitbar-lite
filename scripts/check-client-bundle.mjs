@@ -18,7 +18,7 @@
  *
  * Usage: node scripts/check-client-bundle.mjs <packageRoot>
  *
- * @module dsh-gitbar-lite/scripts/check-client-bundle
+ * @module dsh-lite-git/scripts/check-client-bundle
  */
 
 import { existsSync, readFileSync, statSync } from 'node:fs'
@@ -41,7 +41,7 @@ try {
   process.exit(1)
 }
 
-console.log(`dsh-gitbar-lite: checking the client bundle of ${pkg.name}`)
+console.log(`dsh-lite-git: checking the client bundle of ${pkg.name}`)
 
 // --- parseDshClient(): without a dsh.client row, this package is not in the graph.
 const declaration = pkg.dsh?.client

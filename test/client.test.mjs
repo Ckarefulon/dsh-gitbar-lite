@@ -13,7 +13,7 @@
  * (a tick reflects the index, the confirmation defaults to keeping a copy)
  * actually live.
  *
- * @module dsh-gitbar-lite/test/client
+ * @module dsh-lite-git/test/client
  */
 
 import assert from 'node:assert/strict'
@@ -265,15 +265,15 @@ describe('apply: styles and dictionaries', () => {
   it('injects one stylesheet, through a marker that can be found again', () => {
     const env = install()
     assert.equal(env.state.styles.length, 1)
-    assert.equal(env.state.styles[0].attrs['data-gitbar-style'], '')
-    assert.ok(env.state.styles[0].textContent.includes('.gitbar-root'), 'the stylesheet has content')
+    assert.equal(env.state.styles[0].attrs['data-lite-git-style'], '')
+    assert.ok(env.state.styles[0].textContent.includes('.lite-git-root'), 'the stylesheet has content')
   })
 
   it('registers both dictionaries under the package namespace, inside an effect', () => {
     const env = install()
     assert.equal(env.state.dictionaries.length, 1)
     assert.equal(env.state.dictionaries[0].ns, PLUGIN_ID)
-    assert.ok(env.state.effects.some((entry) => entry.label === 'dsh-gitbar-lite: copy'))
+    assert.ok(env.state.effects.some((entry) => entry.label === 'dsh-lite-git: copy'))
   })
 })
 
@@ -288,11 +288,11 @@ describe('apply: the three tab types', () => {
     assert.equal(types.length, 3)
     assert.deepEqual(
       types.map((type) => type.id),
-      ['dsh-gitbar-lite/git', 'dsh-gitbar-lite/trash', 'dsh-gitbar-lite/diff'],
+      ['dsh-lite-git/git', 'dsh-lite-git/trash', 'dsh-lite-git/diff'],
     )
     assert.deepEqual(
       types.map((type) => type.kind),
-      ['gitbar', 'gitbar-trash', 'gitbar-diff'],
+      ['lite-git', 'lite-git-trash', 'lite-git-diff'],
     )
   })
 
@@ -329,11 +329,11 @@ describe('apply: the three tab types', () => {
 
   it('makes the diff a resource type with one fixed address, which is what makes it a singleton', () => {
     const [, , diff] = ids()
-    assert.deepEqual(diff.patterns, ['dsh-resource://dsh-gitbar-lite/diff/**'])
+    assert.deepEqual(diff.patterns, ['dsh-resource://dsh-lite-git/diff/**'])
     assert.equal(typeof diff.canOpen, 'function')
-    assert.equal(diff.canOpen('dsh-resource://dsh-gitbar-lite/diff/current'), true)
-    assert.equal(diff.canOpen('dsh-resource://dsh-gitbar-lite/diff/current/extra'), true)
-    assert.equal(diff.canOpen('dsh-resource://dsh-gitbar-lite/something-else'), false)
+    assert.equal(diff.canOpen('dsh-resource://dsh-lite-git/diff/current'), true)
+    assert.equal(diff.canOpen('dsh-resource://dsh-lite-git/diff/current/extra'), true)
+    assert.equal(diff.canOpen('dsh-resource://dsh-lite-git/something-else'), false)
     assert.equal(diff.canOpen('dsh-resource://file/session/s1/x.txt'), false)
     // No `multiple`: several instances would defeat the point.
     assert.equal(diff.multiple, undefined)
@@ -369,7 +369,7 @@ describe('apply: the slot seats', () => {
     const bodies = slots.filter((entry) => entry.definition.name === 'sidebar.right.pane.tab')
     assert.deepEqual(
       bodies.map((entry) => entry.definition.key).sort(),
-      ['dsh-gitbar-lite/diff', 'dsh-gitbar-lite/git', 'dsh-gitbar-lite/trash'],
+      ['dsh-lite-git/diff', 'dsh-lite-git/git', 'dsh-lite-git/trash'],
     )
     for (const body of bodies) {
       assert.equal(typeof body.component, 'function')
@@ -384,7 +384,7 @@ describe('apply: the slot seats', () => {
     const titles = slots.filter((entry) => entry.definition.name === 'sidebar.right.pane.tab.title')
     assert.deepEqual(
       titles.map((entry) => entry.definition.key).sort(),
-      ['dsh-gitbar-lite/diff', 'dsh-gitbar-lite/git', 'dsh-gitbar-lite/trash'],
+      ['dsh-lite-git/diff', 'dsh-lite-git/git', 'dsh-lite-git/trash'],
     )
     for (const title of titles) assert.equal(typeof title.component, 'function')
   })
@@ -403,7 +403,7 @@ describe('apply: the slot seats', () => {
     assert.equal(env.state.effects.length, 10)
     for (const entry of env.state.effects) {
       assert.equal(typeof entry.label, 'string')
-      assert.ok(entry.label.startsWith('dsh-gitbar-lite: '), entry.label)
+      assert.ok(entry.label.startsWith('dsh-lite-git: '), entry.label)
       assert.equal(typeof entry.disposer, 'function', `${entry.label} has no disposer`)
     }
   })
@@ -690,16 +690,16 @@ describe('the components without hooks', () => {
         onOpen: (path) => calls.push(['open', path]),
       })
 
-    const staged = withAttr(row({ path: 'a.txt', kind: 'modified', staged: true, partial: false, added: 2, deleted: 1 }), 'data-gitbar-tick')
+    const staged = withAttr(row({ path: 'a.txt', kind: 'modified', staged: true, partial: false, added: 2, deleted: 1 }), 'data-lite-git-tick')
     assert.equal(staged.props['aria-checked'], 'true')
-    assert.ok(staged.props.className.includes('gitbar-tick-on'), staged.props.className)
+    assert.ok(staged.props.className.includes('lite-git-tick-on'), staged.props.className)
 
-    const unstaged = withAttr(row({ path: 'a.txt', kind: 'modified', staged: false, partial: false }), 'data-gitbar-tick')
+    const unstaged = withAttr(row({ path: 'a.txt', kind: 'modified', staged: false, partial: false }), 'data-lite-git-tick')
     assert.equal(unstaged.props['aria-checked'], 'false')
-    assert.ok(!unstaged.props.className.includes('gitbar-tick-on'))
+    assert.ok(!unstaged.props.className.includes('lite-git-tick-on'))
 
-    const partial = withAttr(row({ path: 'a.txt', kind: 'modified', staged: true, partial: true }), 'data-gitbar-tick')
-    assert.ok(partial.props.className.includes('gitbar-tick-partial'), 'a half-staged file reads as indeterminate')
+    const partial = withAttr(row({ path: 'a.txt', kind: 'modified', staged: true, partial: true }), 'data-lite-git-tick')
+    assert.ok(partial.props.className.includes('lite-git-tick-partial'), 'a half-staged file reads as indeterminate')
 
     staged.props.onClick({ stopPropagation: () => {} })
     assert.deepEqual(calls, [['toggle', 'a.txt']])
@@ -718,33 +718,33 @@ describe('the components without hooks', () => {
       onDiscard: () => {},
       onOpen: () => {},
     })
-    assert.equal(withAttr(tree, 'data-gitbar-row').props['data-gitbar-row'], 'src/deep/a.txt')
-    assert.equal(withAttr(tree, 'data-gitbar-row').props['data-gitbar-kind'], 'added')
+    assert.equal(withAttr(tree, 'data-lite-git-row').props['data-lite-git-row'], 'src/deep/a.txt')
+    assert.equal(withAttr(tree, 'data-lite-git-row').props['data-lite-git-kind'], 'added')
 
     // The mark ends the row, which leaves the checkbox and the path at the front.
     assert.deepEqual(
       tree.children.map((child) => child?.props?.className),
-      ['gitbar-tick', 'gitbar-path', 'gitbar-stats', 'gitbar-rowBtn', 'gitbar-status gitbar-status-added'],
+      ['lite-git-tick', 'lite-git-path', 'lite-git-stats', 'lite-git-rowBtn', 'lite-git-status lite-git-status-added'],
     )
 
     // Directory, separator, name — that order, and three nodes so the directory
     // is the part that gives way when the row is narrow.
-    const path = tree.children.find((child) => child?.props?.className === 'gitbar-path')
+    const path = tree.children.find((child) => child?.props?.className === 'lite-git-path')
     assert.deepEqual(
       path.children.map((child) => child?.props?.className),
-      ['gitbar-dir', 'gitbar-sep', 'gitbar-name'],
+      ['lite-git-dir', 'lite-git-sep', 'lite-git-name'],
     )
     assert.equal(path.children[0].children[0].text, 'src/deep')
     assert.equal(path.children[1].children[0].text, '/')
     assert.equal(path.children[2].children[0].text, 'a.txt')
 
     const mark = tree.children.at(-1)
-    assert.equal(mark.props['data-gitbar-status'], 'added')
+    assert.equal(mark.props['data-lite-git-status'], 'added')
     assert.equal(mark.props.title, plainT('status.added'))
 
-    const plus = nodesOf(tree).find((node) => node.props?.className === 'gitbar-plus')
+    const plus = nodesOf(tree).find((node) => node.props?.className === 'lite-git-plus')
     assert.equal(plus.children[0].text, '+12')
-    const minus = nodesOf(tree).find((node) => node.props?.className === 'gitbar-minus')
+    const minus = nodesOf(tree).find((node) => node.props?.className === 'lite-git-minus')
     assert.equal(minus, undefined, 'no deletions means no minus')
 
     // And no letter is left anywhere: the mark is artwork, not a character.
@@ -759,14 +759,14 @@ describe('the components without hooks', () => {
       onDiscard: () => {},
       onOpen: () => {},
     })
-    assert.equal(withAttr(tree, 'data-gitbar-row').props.title, 'old.txt → new.txt')
+    assert.equal(withAttr(tree, 'data-lite-git-row').props.title, 'old.txt → new.txt')
   })
 
   it('default the discard confirmation to keeping a copy, and say so', () => {
     const pending = { paths: ['a.txt'], files: ['a.txt'], hardDelete: false }
     const tree = DiscardDialog({ pending, t: plainT, onCancel: () => {}, onHardDeleteChange: () => {}, onConfirm: () => {}})
-    assert.equal(withAttr(tree, 'data-gitbar-dialog').props['data-gitbar-dialog'], 'discard')
-    const box = withAttr(tree, 'data-gitbar-hard')
+    assert.equal(withAttr(tree, 'data-lite-git-dialog').props['data-lite-git-dialog'], 'discard')
+    const box = withAttr(tree, 'data-lite-git-hard')
     assert.equal(box.props.checked, false)
     assert.ok(textOf(tree).includes('discard.keep'), 'the safe choice explains what it keeps')
     assert.ok(!textOf(tree).includes('discard.hardHint'))
@@ -775,7 +775,7 @@ describe('the components without hooks', () => {
   it('switch the hint when the user asks for the change to be gone for good', () => {
     const pending = { paths: ['a.txt'], files: ['a.txt'], hardDelete: true }
     const tree = DiscardDialog({ pending, t: plainT, onCancel: () => {}, onHardDeleteChange: () => {}, onConfirm: () => {}})
-    assert.equal(withAttr(tree, 'data-gitbar-hard').props.checked, true)
+    assert.equal(withAttr(tree, 'data-lite-git-hard').props.checked, true)
     assert.ok(textOf(tree).includes('discard.hardHint'))
     assert.ok(!textOf(tree).includes('discard.keep'))
   })
@@ -789,7 +789,7 @@ describe('the components without hooks', () => {
       onHardDeleteChange: (next) => seen.push(next),
       onConfirm: () => {},
     })
-    withAttr(tree, 'data-gitbar-hard').props.onChange({ target: { checked: true } })
+    withAttr(tree, 'data-lite-git-hard').props.onChange({ target: { checked: true } })
     assert.deepEqual(seen, [true])
   })
 
@@ -797,7 +797,7 @@ describe('the components without hooks', () => {
     const files = Array.from({ length: 11 }, (_, index) => `file-${index}.txt`)
     const tree = DiscardDialog({ pending: { paths: null, files, hardDelete: false }, t: plainT, onCancel: () => {}, onHardDeleteChange: () => {}, onConfirm: () => {}})
     assert.ok(textOf(tree).includes('discard.all'))
-    assert.equal(allWithAttr(tree, 'data-gitbar-dialog').length, 1)
+    assert.equal(allWithAttr(tree, 'data-lite-git-dialog').length, 1)
     assert.ok(textOf(tree).includes('discard.more'), textOf(tree))
     // Eight are named in full, the rest are counted.
     assert.ok(!textOf(tree).includes('file-10.txt'))
@@ -825,11 +825,11 @@ describe('the components without hooks', () => {
       onRescan: () => {},
       onUnbind: () => {},
     })
-    const candidates = allWithAttr(tree, 'data-gitbar-candidate')
-    assert.deepEqual(candidates.map((node) => node.props['data-gitbar-candidate']), ['C:/work/one', 'C:/work/two'])
+    const candidates = allWithAttr(tree, 'data-lite-git-candidate')
+    assert.deepEqual(candidates.map((node) => node.props['data-lite-git-candidate']), ['C:/work/one', 'C:/work/two'])
     candidates[1].props.onClick()
     assert.deepEqual(picked, ['C:/work/two'])
-    assert.ok(withAttr(tree, 'data-gitbar-pathinput') !== undefined)
+    assert.ok(withAttr(tree, 'data-lite-git-pathinput') !== undefined)
     assert.ok(textOf(tree).includes('bind.truncated'), 'a scan that stopped early says so')
   })
 
@@ -851,9 +851,9 @@ describe('the components without hooks', () => {
   })
 
   it('tone a banner by its meaning', () => {
-    assert.ok(withAttr(Banner({ tone: 'error', text: 'x' }), 'className').props.className.includes('gitbar-banner-error'))
-    assert.ok(withAttr(Banner({ tone: 'warn', text: 'x' }), 'className').props.className.includes('gitbar-banner-warn'))
-    assert.ok(withAttr(Banner({ tone: 'ok', text: 'x' }), 'className').props.className.includes('gitbar-banner-ok'))
+    assert.ok(withAttr(Banner({ tone: 'error', text: 'x' }), 'className').props.className.includes('lite-git-banner-error'))
+    assert.ok(withAttr(Banner({ tone: 'warn', text: 'x' }), 'className').props.className.includes('lite-git-banner-warn'))
+    assert.ok(withAttr(Banner({ tone: 'ok', text: 'x' }), 'className').props.className.includes('lite-git-banner-ok'))
     assert.equal(Banner({ tone: 'ok', text: 'x' }).props.role, 'status')
   })
 })
@@ -863,24 +863,24 @@ describe('the DOM hooks a fixture would need', () => {
     const env = install()
     const css = env.state.styles[0].textContent
     for (const className of [
-      'gitbar-root',
-      'gitbar-row',
-      'gitbar-tick',
-      'gitbar-list',
-      'gitbar-commit',
-      'gitbar-overlay',
-      'gitbar-dialog',
-      'gitbar-diff',
-      'gitbar-r-add',
-      'gitbar-r-del',
-      'gitbar-trashRow',
-      'gitbar-tabTitle',
+      'lite-git-root',
+      'lite-git-row',
+      'lite-git-tick',
+      'lite-git-list',
+      'lite-git-commit',
+      'lite-git-overlay',
+      'lite-git-dialog',
+      'lite-git-diff',
+      'lite-git-r-add',
+      'lite-git-r-del',
+      'lite-git-trashRow',
+      'lite-git-tabTitle',
     ]) {
       assert.ok(css.includes(`.${className}`), `the stylesheet has no .${className}`)
     }
     // The root fills the host's tab body, which gives no height of its own.
-    assert.ok(/\.gitbar-root\{[^}]*height:100%/.test(css), 'the root must claim the full height')
-    assert.ok(/\.gitbar-root\{[^}]*min-height:0/.test(css), 'the root must be allowed to shrink')
+    assert.ok(/\.lite-git-root\{[^}]*height:100%/.test(css), 'the root must claim the full height')
+    assert.ok(/\.lite-git-root\{[^}]*min-height:0/.test(css), 'the root must be allowed to shrink')
   })
 
   /**
@@ -894,8 +894,8 @@ describe('the DOM hooks a fixture would need', () => {
    * `height:38px; border-bottom:.5px` on every sidebar header it owns.
    */
   it('puts the header rule exactly on the conversation header line', () => {
-    const rule = /\.gitbar-head\{([^}]*)\}/.exec(bundle)
-    assert.ok(rule !== null, 'the stylesheet has no .gitbar-head rule')
+    const rule = /\.lite-git-head\{([^}]*)\}/.exec(bundle)
+    assert.ok(rule !== null, 'the stylesheet has no .lite-git-head rule')
     const body = rule[1]
 
     // 38px total: border-box, so the rule is inside the height rather than added

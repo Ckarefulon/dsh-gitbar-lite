@@ -19,7 +19,7 @@
  *
  * Exit 0 when every check passed, 1 otherwise. Run directly (`node test/check.mjs`).
  *
- * @module dsh-gitbar-lite/test/check
+ * @module dsh-lite-git/test/check
  */
 
 import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs'
@@ -264,7 +264,7 @@ check('it declares its own module shim', /const module = \{ exports: \{\} \}/.te
 check('it returns its exports', /return module\.exports/.test(client))
 const requires = [...client.matchAll(/require\((['"])([^'"]+)\1\)/g)].map((match) => match[2])
 eq('react is the only module it requires', [...new Set(requires)], ['react'])
-check('it injects its stylesheet through a findable marker', /data-gitbar-style/.test(client))
+check('it injects its stylesheet through a findable marker', /data-lite-git-style/.test(client))
 {
   // The loader claims every unmarked <style> present when it materializes the
   // factory, and deletes those on invalidate — so a style injected at factory
@@ -275,8 +275,8 @@ check('it injects its stylesheet through a findable marker', /data-gitbar-style/
   eq('ensureStyle is declared once and called once', calls.length, 2)
   check('it injects its stylesheet inside apply, not at factory top level', applyAt > 0 && calls[1].index > applyAt)
 }
-check('the stylesheet claims the full height of the tab body', /\.gitbar-root\{[^}]*height:100%/.test(client))
-check('the stylesheet declares its own scroll areas, since a tab body has none', /\.gitbar-list\{[^}]*overflow:auto/.test(client) && /\.gitbar-diff\{[^}]*overflow:auto/.test(client))
+check('the stylesheet claims the full height of the tab body', /\.lite-git-root\{[^}]*height:100%/.test(client))
+check('the stylesheet declares its own scroll areas, since a tab body has none', /\.lite-git-list\{[^}]*overflow:auto/.test(client) && /\.lite-git-diff\{[^}]*overflow:auto/.test(client))
 check(
   'the stylesheet never hard-codes a colour',
   !/(?:^|[{;'\s])(?:color|background|border-color)\s*:\s*(?!var\(|none|inherit|transparent)/m.test(client),

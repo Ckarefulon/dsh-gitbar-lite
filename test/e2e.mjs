@@ -25,7 +25,7 @@
  * Exit 0 when every check passed, 1 otherwise. Run directly (`node test/e2e.mjs`)
  * rather than through `node --test`.
  *
- * @module dsh-gitbar-lite/test/e2e
+ * @module dsh-lite-git/test/e2e
  */
 
 import { spawn } from 'node:child_process'
@@ -60,11 +60,11 @@ import { createFakeSubprocess } from './helpers/subprocess.mjs'
  * the precondition and fails loudly rather than quietly changing what the suite
  * means.
  *
- * `GITBAR_E2E_SCRATCH` pins the directory instead, which is useful when looking
+ * `LITEGIT_E2E_SCRATCH` pins the directory instead, which is useful when looking
  * at a failure. A pinned directory is never deleted.
  */
 let scratch = ''
-const pinnedScratch = process.env.GITBAR_E2E_SCRATCH ?? ''
+const pinnedScratch = process.env.LITEGIT_E2E_SCRATCH ?? ''
 
 /** The session every call pretends to come from. */
 const SESSION = 'session-e2e'
@@ -156,8 +156,8 @@ async function put(path, content) {
 async function initRepo(dir) {
   await mkdir(dir, { recursive: true })
   await git(dir, ['init', '-q', '-b', 'main'])
-  await git(dir, ['config', 'user.email', 'gitbar@example.invalid'])
-  await git(dir, ['config', 'user.name', 'Gitbar Test'])
+  await git(dir, ['config', 'user.email', 'lite-git@example.invalid'])
+  await git(dir, ['config', 'user.name', 'Litegit Test'])
   // Pin the line endings: this machine's global config has core.autocrlf=true,
   // and a fixture whose bytes depend on the developer's git config is a fixture
   // that fails on someone else's machine for no reason.
@@ -284,7 +284,7 @@ async function realStatus(dir) {
 // --------------------------------------------------------------------- suite
 
 async function main() {
-  scratch = pinnedScratch === '' ? await mkdtemp(join(tmpdir(), 'dsh-gitbar-lite-e2e-')) : pinnedScratch
+  scratch = pinnedScratch === '' ? await mkdtemp(join(tmpdir(), 'dsh-lite-git-e2e-')) : pinnedScratch
   await rm(scratch, { recursive: true, force: true })
   await mkdir(scratch, { recursive: true })
 
@@ -1412,7 +1412,7 @@ async function main() {
     const broken = createHarness({
       workspacePath: workspace,
       stateDir: join(scratch, 'state-24b'),
-      openWith: [{ label: 'Nope', command: 'gitbar-no-such-program', args: ['{path}'] }],
+      openWith: [{ label: 'Nope', command: 'lite-git-no-such-program', args: ['{path}'] }],
     })
     const unstartable = await broken.call(ACTIONS.OPEN_FILE, { sessionId: SESSION, path: 'a.txt', opener: 'custom:0' })
     ok('a program that cannot be started says so', unstartable.body.ok === false && unstartable.body.error.code === ERROR_CODES.NO_OPENER, unstartable.body)

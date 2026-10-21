@@ -1,7 +1,7 @@
-# dsh-gitbar-lite — loader rows.
+# dsh-lite-git — loader rows.
 #
 # One dual-face plugin row: the node half (exports ".") runs in the Host process
-# and serves this plugin's `/api/dsh-gitbar-lite/rpc` route; the `dsh.client`
+# and serves this plugin's `/api/dsh-lite-git/rpc` route; the `dsh.client`
 # declaration in package.json makes the browser half (exports "./client") load
 # in the Web GUI as a right-sidebar tab type.
 #
@@ -15,5 +15,5 @@
 # the user changes live in this profile's own patch layer and survive an upgrade
 # of this package; restating them here would shadow those edits.
 - insert:
-    - id: dsh-gitbar-lite
-      name: dsh-gitbar-lite
+    - id: dsh-lite-git
+      name: dsh-lite-git

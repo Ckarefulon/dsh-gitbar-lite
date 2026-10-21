@@ -1,4 +1,4 @@
-# dsh-gitbar-lite — implementation contract
+# dsh-lite-git — implementation contract
 
 This document is the part of the design that is *not* visible from the outside:
 the wire between the two halves, where state lives, the invariants the code is
@@ -16,9 +16,9 @@ Three tab types, all session-scoped because that is what the right column is:
 
 | Tab | Kind | Address | Opened by |
 |---|---|---|---|
-| The panel | `gitbar` | page (`sidebar://gitbar`) | the guide card in the right column |
-| The trash | `gitbar-trash` | page (`sidebar://gitbar-trash`) | a button in the panel |
-| A diff | `gitbar-diff` | **resource** (`dsh-resource://dsh-gitbar-lite/diff/current`) | double-clicking a file, or a trash entry |
+| The panel | `lite-git` | page (`sidebar://lite-git`) | the guide card in the right column |
+| The trash | `lite-git-trash` | page (`sidebar://lite-git-trash`) | a button in the panel |
+| A diff | `lite-git-diff` | **resource** (`dsh-resource://dsh-lite-git/diff/current`) | double-clicking a file, or a trash entry |
 
 The split between the halves is total: the browser half never touches the disk,
 never shells out, and never sees a path it did not get from the host.
@@ -28,14 +28,14 @@ right sidebar tab (browser)            host process
 ──────────────────────────            ─────────────
 GitPanel / TrashBody / DiffBody
         │
-        │  POST /api/dsh-gitbar-lite/rpc
+        │  POST /api/dsh-lite-git/rpc
         │  { action, ...payload }            connection.fetch.register
         ▼                                    → admit() (fence + cookie)
    createRoute.fetch ─────────────────────►  → createHandlers[action]
                                                    │
                                                    ├─ git.js    ctx.subprocess
                                                    ├─ repo.js   the operations
-                                                   └─ store.js  <DSH_HOME>/dsh-gitbar-lite
+                                                   └─ store.js  <DSH_HOME>/dsh-lite-git
 ```
 
 **Why one route and not one action per route.** `connection.fetch` matches on the
@@ -58,7 +58,7 @@ the predicate against a deliberately broken copy of the source.
 
 ## 2. The wire contract
 
-`POST /api/dsh-gitbar-lite/rpc`, body `{ action, ...payload }`, `requestBody:
+`POST /api/dsh-lite-git/rpc`, body `{ action, ...payload }`, `requestBody:
 'buffered'`.
 
 Every response is JSON with `cache-control: no-store`. Success is
@@ -140,7 +140,7 @@ unexplained internal failure.
 
 ## 3. Where state lives
 
-`<DSH_HOME>/dsh-gitbar-lite/`, falling back to `~/.dsh`. **Do not read
+`<DSH_HOME>/dsh-lite-git/`, falling back to `~/.dsh`. **Do not read
 `$DSH_HOME` alone**: the Host process usually does not have it set (the variable
 belongs to the shell DSH spawns), so a state file written under a bare
 `process.env.DSH_HOME` lands somewhere else or fails to resolve at all. This is
@@ -298,9 +298,9 @@ missing rather than pretending the entry vanished.
 ## 7. The right-sidebar tab identities
 
 ```
-id:   dsh-gitbar-lite/git     kind: gitbar         page   keepMounted, one guide card (order 30)
-id:   dsh-gitbar-lite/trash   kind: gitbar-trash   page
-id:   dsh-gitbar-lite/diff    kind: gitbar-diff    resource, patterns: dsh-resource://dsh-gitbar-lite/diff/**
+id:   dsh-lite-git/git     kind: lite-git         page   keepMounted, one guide card (order 30)
+id:   dsh-lite-git/trash   kind: lite-git-trash   page
+id:   dsh-lite-git/diff    kind: lite-git-diff    resource, patterns: dsh-resource://dsh-lite-git/diff/**
 ```
 
 `definition.id` is **also the slot key** the body and title register under. Two
@@ -384,7 +384,7 @@ this package on the next upgrade.
 | field | default | why |
 |---|---|---|
 | `gitPath` | `''` | Empty means "whatever is on PATH". Set it when git is somewhere unusual. |
-| `stateDir` | `''` | Empty means `<DSH_HOME>/dsh-gitbar-lite`. |
+| `stateDir` | `''` | Empty means `<DSH_HOME>/dsh-lite-git`. |
 | `timeoutMs` | `30000` | Per-command. A push to a slow remote may need more. |
 | `maxDiffBytes` | `524288` | Ceiling on one archived diff. A discarding user is having a bad day already; a 200 MB generated file must not become a 200 MB write that then fails. |
 | `maxFileBytes` | `2097152` | Larger untracked files are listed but their content is not read, archived, or diffed. |
@@ -429,8 +429,8 @@ show the index claim rather than assume it.
   reproduce: Windows Job containment, the environment scrubbing, spill files
   (`readFrom`'s `spillPath`), and the `control` duplex.
 - **What the live run established.** The plugin loads into a running DSH and all
-  three right-sidebar seats register and are active — `dsh-gitbar-lite/git` and
-  `dsh-gitbar-lite/trash` (pages) and `dsh-gitbar-lite/diff` (resource) — read
+  three right-sidebar seats register and are active — `dsh-lite-git/git` and
+  `dsh-lite-git/trash` (pages) and `dsh-lite-git/diff` (resource) — read
   off the live client slot tree at `sidebar.right.pane.tab`, next to the shipped
   occupants. That is evidence about *mounting*; the behaviour claims are the e2e
   suite's job, and the seam between them is the doubled `ctx.subprocess` above.

@@ -23,7 +23,7 @@
  * failure that actually blanked the panel. Real layout is still unverified, for
  * the reasons `docs/CONTRACT.md` gives.
  *
- * @module dsh-gitbar-lite/test/seats
+ * @module dsh-lite-git/test/seats
  */
 
 import test from 'node:test'
@@ -233,10 +233,10 @@ test('the bundle registers three tabs and a body and a title for each', () => {
 
   assert.deepEqual(
     tabDefs.map((definition) => `${definition.id}:${definition.kind}`),
-    ['dsh-gitbar-lite/git:gitbar', 'dsh-gitbar-lite/trash:gitbar-trash', 'dsh-gitbar-lite/diff:gitbar-diff'],
+    ['dsh-lite-git/git:lite-git', 'dsh-lite-git/trash:lite-git-trash', 'dsh-lite-git/diff:lite-git-diff'],
   )
 
-  for (const id of ['dsh-gitbar-lite/git', 'dsh-gitbar-lite/trash', 'dsh-gitbar-lite/diff']) {
+  for (const id of ['dsh-lite-git/git', 'dsh-lite-git/trash', 'dsh-lite-git/diff']) {
     const body = seats.find((seat) => seat.name === 'sidebar.right.pane.tab' && seat.key === id)
     const title = seats.find((seat) => seat.name === 'sidebar.right.pane.tab.title' && seat.key === id)
     assert.equal(typeof body?.component, 'function', `${id} has a body`)
@@ -330,7 +330,7 @@ test('the panel header offers a select-all box, and it reflects the selection', 
     const bundle = loadBundle()
     const { ctx, seats } = createCtx()
     bundle.apply(ctx)
-    const body = seats.find((seat) => seat.name === 'sidebar.right.pane.tab' && seat.key === 'dsh-gitbar-lite/git')
+    const body = seats.find((seat) => seat.name === 'sidebar.right.pane.tab' && seat.key === 'dsh-lite-git/git')
     const props = bodyProps(ctx)
 
     bundle.seed([null, 'loading'])
@@ -352,7 +352,7 @@ test('the panel header offers a select-all box, and it reflects the selection', 
       return null
     }
     if (typeof node !== 'object') return null
-    if (node.props?.['data-gitbar-selectall'] !== undefined) return node
+    if (node.props?.['data-lite-git-selectall'] !== undefined) return node
     for (const child of node.children ?? []) {
       const found = findSelectAll(child)
       if (found !== null) return found
@@ -362,22 +362,22 @@ test('the panel header offers a select-all box, and it reflects the selection', 
 
   const none = findSelectAll(renderWith([file('a.txt', false), file('b.txt', false)]))
   assert.ok(none !== null, 'the header tick is rendered')
-  assert.equal(none.props['data-gitbar-selectall'], 'none')
+  assert.equal(none.props['data-lite-git-selectall'], 'none')
   assert.equal(none.props['aria-checked'], 'false')
   assert.equal(none.props.disabled, false, 'it is clickable when there is something to tick')
 
   const some = findSelectAll(renderWith([file('a.txt', true), file('b.txt', false)]))
-  assert.equal(some.props['data-gitbar-selectall'], 'some')
+  assert.equal(some.props['data-lite-git-selectall'], 'some')
   assert.equal(some.props['aria-checked'], 'mixed', 'a partial selection reads as mixed')
 
   const all = findSelectAll(renderWith([file('a.txt', true), file('b.txt', true)]))
-  assert.equal(all.props['data-gitbar-selectall'], 'all')
+  assert.equal(all.props['data-lite-git-selectall'], 'all')
   assert.equal(all.props['aria-checked'], 'true')
 
   // Nothing changed means nothing to tick, so the control is disabled rather
   // than offering to do something it cannot.
   const empty = findSelectAll(renderWith([]))
-  assert.equal(empty.props['data-gitbar-selectall'], 'empty')
+  assert.equal(empty.props['data-lite-git-selectall'], 'empty')
   assert.equal(empty.props.disabled, true)
 })
 
@@ -410,7 +410,7 @@ test('the diff tab hands the file to a program, and the menu offers the ones the
   const { ctx, seats } = createCtx()
   bundle.apply(ctx)
 
-  const body = seats.find((seat) => seat.name === 'sidebar.right.pane.tab' && seat.key === 'dsh-gitbar-lite/diff')
+  const body = seats.find((seat) => seat.name === 'sidebar.right.pane.tab' && seat.key === 'dsh-lite-git/diff')
   assert.equal(typeof body?.component, 'function', 'the diff body is registered')
 
   const diff = { text: 'diff --git a/a.txt b/a.txt\n+one\n', added: 1, deleted: 0, binary: false, truncated: false }
@@ -430,7 +430,7 @@ test('the diff tab hands the file to a program, and the menu offers the ones the
       body.component,
       bodyProps(ctx, {
         t,
-        tab: { navigation: { address: 'dsh-resource://dsh-gitbar-lite/diff/current', params, revision: 1 } },
+        tab: { navigation: { address: 'dsh-resource://dsh-lite-git/diff/current', params, revision: 1 } },
       }),
     )
 
@@ -466,22 +466,22 @@ test('the diff tab hands the file to a program, and the menu offers the ones the
 
   // One button opens straight away, with the program used last — that is the
   // whole point of remembering it — and its tooltip names that program.
-  const openButton = findAttr(ready, 'data-gitbar-open')
+  const openButton = findAttr(ready, 'data-lite-git-open')
   assert.ok(openButton !== null, 'the open button is rendered')
-  assert.equal(attr(openButton, 'data-gitbar-open'), 'notepad')
+  assert.equal(attr(openButton, 'data-lite-git-open'), 'notepad')
   assert.equal(openButton.props.label, '用 记事本 打开')
   assert.equal(openButton.props.disabled, undefined, 'it is clickable as soon as the list arrives')
 
-  const caret = findAttr(ready, 'data-gitbar-openmenu')
+  const caret = findAttr(ready, 'data-lite-git-openmenu')
   assert.ok(caret !== null, 'the menu toggle is rendered')
-  assert.equal(attr(caret, 'data-gitbar-openmenu'), 'closed')
-  assert.equal(findAttr(ready, 'data-gitbar-menu'), null, 'and the menu is not')
+  assert.equal(attr(caret, 'data-lite-git-openmenu'), 'closed')
+  assert.equal(findAttr(ready, 'data-lite-git-menu'), null, 'and the menu is not')
 
   // Open: one row per program the host listed, with the remembered one marked and
   // the configured entry wearing its own name rather than an id.
   bundle.seed([diff, 'ready', null, openers, true, null])
   const expanded = render(worktree)
-  const menu = findAttr(expanded, 'data-gitbar-menu')
+  const menu = findAttr(expanded, 'data-lite-git-menu')
   assert.ok(menu !== null, 'the menu is rendered')
   const rows = []
   const collect = (node) => {
@@ -490,14 +490,14 @@ test('the diff tab hands the file to a program, and the menu offers the ones the
       for (const child of node) collect(child)
       return
     }
-    if (node.props?.['data-gitbar-opener'] !== undefined) rows.push(node)
+    if (node.props?.['data-lite-git-opener'] !== undefined) rows.push(node)
     for (const child of node.children ?? []) collect(child)
   }
   collect(menu)
-  assert.deepEqual(rows.map((row) => row.props['data-gitbar-opener']), ['default', 'notepad', 'custom:0'])
+  assert.deepEqual(rows.map((row) => row.props['data-lite-git-opener']), ['default', 'notepad', 'custom:0'])
   assert.deepEqual(rows.map((row) => row.props['aria-checked']), ['false', 'true', 'false'])
   const labelOf = (row) => {
-    const label = findFirst(row, (node) => node.props?.className === 'gitbar-menuLabel')
+    const label = findFirst(row, (node) => node.props?.className === 'lite-git-menuLabel')
     assert.ok(label !== null, 'the row has a label')
     return [].concat(label.children).join('')
   }
@@ -507,6 +507,6 @@ test('the diff tab hands the file to a program, and the menu offers the ones the
   // there at all — a disabled button would invite a press that could never work.
   bundle.seed([diff, 'ready', null, openers, false, null])
   const trash = render({ source: 'trash', id: 'entry-1' })
-  assert.equal(findAttr(trash, 'data-gitbar-open'), null, 'no open button for a trash entry')
-  assert.equal(findAttr(trash, 'data-gitbar-openmenu'), null, 'and no menu toggle either')
+  assert.equal(findAttr(trash, 'data-lite-git-open'), null, 'no open button for a trash entry')
+  assert.equal(findAttr(trash, 'data-lite-git-openmenu'), null, 'and no menu toggle either')
 })

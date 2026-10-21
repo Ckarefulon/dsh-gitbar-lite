@@ -5,7 +5,7 @@
  * Every case here runs against a throwaway directory under `test/.scratch/`, so
  * a run never touches the real `<DSH_HOME>`.
  *
- * @module dsh-gitbar-lite/test/store
+ * @module dsh-lite-git/test/store
  */
 
 import assert from 'node:assert/strict'

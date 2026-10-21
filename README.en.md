@@ -1,10 +1,15 @@
-# dsh-gitbar-lite
+# dsh-lite-git
 
 **A GitHub Desktop-style Git panel for DSH**, living in DSH's **built-in right sidebar** — beside Files, Document and Chat.
 
 Changed files, tick-to-stage, a Summary plus a collapsible Description, Commit and Commit and Push, one context button that is Push or Fetch depending on the branch, a discard that archives into the plugin's own trash, and a diff preview — all in that column.
 
 > 中文：[README.md](./README.md)
+
+> **Renamed to `dsh-lite-git` in 0.7.0** (it used to be `dsh-gitbar-lite`). The package id, the RPC route and the
+> state directory all moved with it, so remove the old one first: `dsh plugin --profile <your profile> remove dsh-gitbar-lite`,
+> then install as below. The old `<DSH_HOME>/dsh-gitbar-lite/` (repository bindings, scripts, trash) can be moved to
+> `<DSH_HOME>/dsh-lite-git/` and keeps working.
 
 ## Why a right-sidebar tab
 
@@ -48,7 +53,7 @@ The plugin stores no credential of its own, and the host half reads no secret ou
 ## Install
 
 ```sh
-dsh plugin --profile <your profile> add dsh-gitbar-lite
+dsh plugin --profile <your profile> add dsh-lite-git
 ```
 
 Restart DSH. Open the right column in a session; its guide page gains a **"Git changes"** card, and that opens the panel.
@@ -59,13 +64,13 @@ Restart DSH. Open the right column in a session; its guide page gains a **"Git c
 **From a local directory** (use this while changing the code):
 
 ```sh
-dsh plugin --profile desktop add link:/absolute/path/dsh-gitbar-lite
+dsh plugin --profile desktop add link:/absolute/path/dsh-lite-git
 ```
 
 **Uninstall**:
 
 ```sh
-dsh plugin --profile <your profile> remove dsh-gitbar-lite
+dsh plugin --profile <your profile> remove dsh-lite-git
 ```
 
 **DSH will not start after installing**: run `node scripts/check-client-bundle.mjs .` first. DSH reads
@@ -85,7 +90,7 @@ right column, guide page
 └──────────────────────────────────┘
         ↓
 ┌──────────────────────────────────┐
-│ dsh-gitbar-lite  main   ↑1 ↓0    │  ← repository / branch / ahead·behind
+│ dsh-lite-git  main   ↑1 ↓0    │  ← repository / branch / ahead·behind
 │              [Push] [↻] [🗄] [⑂]  │  ← context button, refresh, trash, rebind
 │ Changes  5 files · 2 ticked [Discard all] │
 │ ☑ M  a.txt                  +3 −1 ↩│  ← double-click = diff; ↩ = discard this file
@@ -167,7 +172,7 @@ A failing script does not raise an error banner; its exit code shows as a brief 
 you can judge for yourself.
 
 
-> The script is stored **per repository** (keyed by its path, in `<DSH_HOME>/dsh-gitbar-lite/scripts.json`), so one
+> The script is stored **per repository** (keyed by its path, in `<DSH_HOME>/dsh-lite-git/scripts.json`), so one
 > project never runs another one's script. A repository that has never had one opens an **empty** editor — no built-in
 > script is filled in, the placeholder is only an example — and an emptied script stays empty.
 
@@ -176,7 +181,7 @@ you can judge for yourself.
 | field | default | |
 |---|---|---|
 | `gitPath` | `""` | Explicit git executable; empty means "look on `PATH`" |
-| `stateDir` | `""` | Plugin state directory; empty means `<DSH_HOME>/dsh-gitbar-lite` |
+| `stateDir` | `""` | Plugin state directory; empty means `<DSH_HOME>/dsh-lite-git` |
 | `timeoutMs` | `30000` | Per-command timeout. Raise it for a slow remote |
 | `maxDiffBytes` | `524288` | Ceiling on one archived diff; it is cut on a **line** boundary and the dropped lines are recorded |
 | `maxFileBytes` | `2097152` | Larger untracked files are listed but not read, archived, or diffed |
@@ -188,7 +193,7 @@ you can judge for yourself.
 
 Every field is volatile, so a change on the settings page takes effect without a restart.
 
-**Where state lives**: `<DSH_HOME>/dsh-gitbar-lite/` (falling back to `~/.dsh`) — `bindings.json` (workspace →
+**Where state lives**: `<DSH_HOME>/dsh-lite-git/` (falling back to `~/.dsh`) — `bindings.json` (workspace →
 repository), `prefs.json` (the two remembered choices), and `trash/index.json` plus `trash/<id>.diff`. The trash keeps
 **that one diff and nothing else** — no second copy of the file: restoring replays it with `git apply`, so the record the
 panel shows and the thing a restore needs are the same bytes. Every write goes through a temp file and a rename, so a
@@ -310,7 +315,7 @@ On the package page → Settings → Trusted Publisher:
 | field | value |
 |---|---|
 | Publisher | GitHub Actions |
-| Repository | `Ckarefulon/dsh-gitbar-lite` |
+| Repository | `Ckarefulon/dsh-lite-git` |
 | Workflow filename | `publish.yml` |
 | Environment | (leave empty) |
 

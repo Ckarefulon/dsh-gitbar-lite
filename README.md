@@ -1,10 +1,14 @@
-# dsh-gitbar-lite
+# dsh-lite-git
 
 **给 DSH 用的 GitHub Desktop 风格 Git 面板**——装在 DSH **自带的右侧栏**里，和「文件 / 文档 / 聊天」并排。
 
 变更文件列表、勾选提交、Summary + Description、Commit / Commit and Push、一个会随分支状态变化的 Push/Fetch 按钮、舍弃更改进插件自己的回收站、双击看 diff——都在这一栏里。
 
 > English: [README.en.md](./README.en.md)
+
+> **0.7.0 起改名为 `dsh-lite-git`**（原 `dsh-gitbar-lite`）。包的 id、RPC 路由、状态目录都跟着换了，所以升级时要把旧的卸掉：
+> `dsh plugin --profile <你的 profile> remove dsh-gitbar-lite`，再按下面的「安装」装新的；
+> 旧的 `<DSH_HOME>/dsh-gitbar-lite/`（仓库绑定、脚本、回收站）可以整个搬到 `<DSH_HOME>/dsh-lite-git/` 继续用。
 
 ## 为什么是「右侧栏的一个 tab」
 
@@ -48,7 +52,7 @@ DSH 的右栏本来就是一个常驻的标签区。Git 面板放这里，意味
 ## 安装
 
 ```sh
-dsh plugin --profile <你的 profile> add dsh-gitbar-lite
+dsh plugin --profile <你的 profile> add dsh-lite-git
 ```
 
 装完**重启 DSH**。然后在一个会话里打开右侧栏，引导页上会多一张 **「Git 更改」** 卡片，点它就进面板。
@@ -59,13 +63,13 @@ dsh plugin --profile <你的 profile> add dsh-gitbar-lite
 **本地目录安装**（改代码时用这个）：
 
 ```sh
-dsh plugin --profile desktop add link:/绝对路径/dsh-gitbar-lite
+dsh plugin --profile desktop add link:/绝对路径/dsh-lite-git
 ```
 
 **卸载**：
 
 ```sh
-dsh plugin --profile <你的 profile> remove dsh-gitbar-lite
+dsh plugin --profile <你的 profile> remove dsh-lite-git
 ```
 
 **装完 DSH 起不来**：先跑 `node scripts/check-client-bundle.mjs .`。DSH 把
@@ -84,7 +88,7 @@ dsh plugin --profile <你的 profile> remove dsh-gitbar-lite
 └──────────────────────────────────┘
         ↓ 点开
 ┌──────────────────────────────────┐
-│ dsh-gitbar-lite  main   ↑1 ↓0    │  ← 仓库名 / 分支 / 领先落后
+│ dsh-lite-git  main   ↑1 ↓0    │  ← 仓库名 / 分支 / 领先落后
 │              [Push] [↻] [🗄] [⑂]  │  ← 上下文按钮、刷新、回收站、换绑
 │ 更改   5 个文件 · 已勾选 2  [全部舍弃] │
 │ ☑ M  a.txt                  +3 −1 ↩│  ← 双击 = 看 diff；↩ = 舍弃这个文件
@@ -151,14 +155,14 @@ echo "Bumped the patch version."
 脚本失败不弹错误横幅，退出码会以一条短暂提示显示；它的 stderr 原样保留，方便你自己判断。
 
 
-> 脚本是**按仓库**存的（键是仓库路径，文件在 <DSH_HOME>/dsh-gitbar-lite/scripts.json）：A 项目配的脚本不会跑到 B 项目里。一个从没配过脚本的仓库，编辑框是**空的**——不预先填任何脚本，占位提示只给个例子；清空保存之后它也真的空着。
+> 脚本是**按仓库**存的（键是仓库路径，文件在 <DSH_HOME>/dsh-lite-git/scripts.json）：A 项目配的脚本不会跑到 B 项目里。一个从没配过脚本的仓库，编辑框是**空的**——不预先填任何脚本，占位提示只给个例子；清空保存之后它也真的空着。
 
 ## 配置
 
 | 字段 | 默认 | 说明 |
 |---|---|---|
 | `gitPath` | `""` | 指定 git 可执行文件；空 = 从 `PATH` 找 |
-| `stateDir` | `""` | 插件状态目录；空 = `<DSH_HOME>/dsh-gitbar-lite` |
+| `stateDir` | `""` | 插件状态目录；空 = `<DSH_HOME>/dsh-lite-git` |
 | `timeoutMs` | `30000` | 单条 git 命令超时。推到慢远端可以调大 |
 | `maxDiffBytes` | `524288` | 一份归档 diff 的上限；超出按**行**截断并记下丢了多少行 |
 | `maxFileBytes` | `2097152` | 比这大的未跟踪文件只列出来，不读内容、不归档、不出 diff |
@@ -170,7 +174,7 @@ echo "Bumped the patch version."
 
 每个字段都是 volatile 的，所以在设置页改了立刻生效、不用重启。
 
-**状态存在哪**：`<DSH_HOME>/dsh-gitbar-lite/`（没有 `DSH_HOME` 就回落 `~/.dsh`）——
+**状态存在哪**：`<DSH_HOME>/dsh-lite-git/`（没有 `DSH_HOME` 就回落 `~/.dsh`）——
 `bindings.json`（工作区 → 仓库）、`prefs.json`（那两个勾选偏好）、`trash/index.json` + `trash/<id>.diff`。
 **回收站只存那一个 diff，不额外留一份文件副本**：恢复时用 `git apply` 把它重放回去，
 那既是面板显示的记录，也是回放所需的全部内容；重放完再把这些路径 `git add` 进索引，
@@ -272,7 +276,7 @@ npm run test:live # 探测一个正在运行的 DSH（不在 npm test 里，需�
 | 字段 | 值 |
 |---|---|
 | Publisher | GitHub Actions |
-| Repository | `Ckarefulon/dsh-gitbar-lite` |
+| Repository | `Ckarefulon/dsh-lite-git` |
 | Workflow filename | `publish.yml` |
 | Environment | （留空） |
 

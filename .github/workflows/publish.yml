@@ -1,4 +1,4 @@
-# Publish dsh-gitbar-lite to npm.
+# Publish dsh-lite-git to npm.
 #
 # The whole design is one sentence: **a push to `main` publishes, if and only if
 # `package.json`'s `version` is not on the registry yet.** Forgetting to bump the

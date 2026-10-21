@@ -20,7 +20,7 @@
  * does not try to be one; it asserts on the calls the panel made and on the
  * values it rendered.
  *
- * @module dsh-gitbar-lite/test/focus
+ * @module dsh-lite-git/test/focus
  */
 
 import assert from 'node:assert/strict'
@@ -337,7 +337,7 @@ function createPanel(options = {}) {
     })
 
   const summaryValue = () => {
-    const input = runtime.elements().find((host) => host.props['data-gitbar-summary'] !== undefined)
+    const input = runtime.elements().find((host) => host.props['data-lite-git-summary'] !== undefined)
     return input === undefined ? undefined : input.props.value
   }
 
@@ -350,13 +350,13 @@ function createPanel(options = {}) {
     repo,
     summaryValue,
     typeSummary(value) {
-      const input = runtime.elements().find((host) => host.props['data-gitbar-summary'] !== undefined)
+      const input = runtime.elements().find((host) => host.props['data-lite-git-summary'] !== undefined)
       input.props.onChange({ target: { value } })
       return runtime.pump('type')
     },
     /** Press one row's tick, the way a user unticking a file does. */
     async untick(path) {
-      const row = runtime.elements().find((host) => host.props['data-gitbar-tick'] === path)
+      const row = runtime.elements().find((host) => host.props['data-lite-git-tick'] === path)
       assert.ok(row !== undefined, `the row for ${path} is rendered`)
       row.props.onClick({ stopPropagation() {} })
       await runtime.pump('untick')

@@ -9,7 +9,7 @@
  * style preference. `apply` is driven against a fake context that records both
  * carriers, and a `webServer` that throws if it is ever touched.
  *
- * @module dsh-gitbar-lite/test/index
+ * @module dsh-lite-git/test/index
  */
 
 import assert from 'node:assert/strict'
@@ -93,7 +93,7 @@ function fakeContext({ connectionPresent = true, injectFires = true } = {}) {
 describe('the plugin manifest', () => {
   it('is keyed by the package name the client bundle registers under', () => {
     assert.equal(name, PLUGIN_ID)
-    assert.equal(PLUGIN_ID, 'dsh-gitbar-lite')
+    assert.equal(PLUGIN_ID, 'dsh-lite-git')
   })
 
   it('declares only the services it cannot run without', () => {
@@ -191,7 +191,7 @@ describe('apply: the route carrier', () => {
   it('owns the registration through an effect, so unloading unregisters it', () => {
     const env = fakeContext()
     apply(env.ctx, {})
-    const entry = env.effects.find((record) => record.label === 'dsh-gitbar-lite: rpc route')
+    const entry = env.effects.find((record) => record.label === 'dsh-lite-git: rpc route')
     assert.ok(entry !== undefined, 'the route is installed through ctx.effect with a label')
     assert.equal(typeof entry.disposer, 'function')
     assert.equal(env.routesSeen.has(RPC_ROUTE), true)

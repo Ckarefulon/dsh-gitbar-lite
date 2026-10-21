@@ -19,7 +19,7 @@
  *   2. the `@deepseek-ai` scope of each installed DSH profile under DSH_HOME;
  *   3. `npm install --no-save` for whatever is still missing (what CI does).
  *
- * @module dsh-gitbar-lite/scripts/install-peers
+ * @module dsh-lite-git/scripts/install-peers
  */
 
 import { cp, mkdir, readFile, readdir, stat } from 'node:fs/promises'
@@ -187,6 +187,6 @@ export async function installPeers({ quiet = false } = {}) {
 }
 
 if (process.argv[1] !== undefined && resolve(process.argv[1]) === resolve(fileURLToPath(import.meta.url))) {
-  console.log('dsh-gitbar-lite: preparing peer dependencies')
+  console.log('dsh-lite-git: preparing peer dependencies')
   process.exit((await installPeers()) ? 0 : 1)
 }

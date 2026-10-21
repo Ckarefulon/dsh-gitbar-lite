@@ -26,7 +26,7 @@
  * object and does *not* scrub the environment; both belong to the real service.
  * `test/live.mjs` exists to close that gap on a machine that has DSH installed.
  *
- * @module dsh-gitbar-lite/test/helpers/subprocess
+ * @module dsh-lite-git/test/helpers/subprocess
  */
 
 import { spawn as spawnChild } from 'node:child_process'

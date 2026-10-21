@@ -6,7 +6,7 @@
  * `git restore` has already destroyed the original by the time anyone reads the
  * archive — so it is pinned line by line rather than spot-checked.
  *
- * @module dsh-gitbar-lite/test/diff
+ * @module dsh-lite-git/test/diff
  */
 
 import assert from 'node:assert/strict'
@@ -123,7 +123,7 @@ describe('limitDiff', () => {
     assert.equal(limited.truncated, true)
     assert.ok(limited.droppedLines > 0, limited)
     assert.ok(Buffer.byteLength(limited.text, 'utf8') > 20, 'the marker is allowed past the cap')
-    assert.ok(limited.text.includes('[dsh-gitbar-lite] diff truncated'), limited.text)
+    assert.ok(limited.text.includes('[dsh-lite-git] diff truncated'), limited.text)
     // No line is ever half-kept.
     for (const line of limited.text.split('\n')) {
       if (line.startsWith('+')) assert.ok(text.includes(line), `partial line kept: ${JSON.stringify(line)}`)

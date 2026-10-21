@@ -1,17 +1,17 @@
 {
-  "name": "dsh-gitbar-lite",
-  "version": "0.6.6",
+  "name": "dsh-lite-git",
+  "version": "0.7.0",
   "description": "A GitHub Desktop-style Git panel for DSH: changed files, tick-to-stage, Summary + Description, Commit and Commit and Push, discard-to-trash, and diff preview, in the built-in right sidebar.",
   "type": "module",
   "license": "MIT",
   "author": "Ckarefulon",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/Ckarefulon/dsh-gitbar-lite.git"
+    "url": "git+https://github.com/Ckarefulon/dsh-lite-git.git"
   },
-  "homepage": "https://github.com/Ckarefulon/dsh-gitbar-lite#readme",
+  "homepage": "https://github.com/Ckarefulon/dsh-lite-git#readme",
   "bugs": {
-    "url": "https://github.com/Ckarefulon/dsh-gitbar-lite/issues"
+    "url": "https://github.com/Ckarefulon/dsh-lite-git/issues"
   },
   "publishConfig": {
     "access": "public",
