@@ -612,6 +612,27 @@ describe('pure helpers', () => {
     assert.equal(internals.contextAction({ primary: 'fetch' }), 'fetch')
   })
 
+  it('name a program in the open-with menu', () => {
+    const t = (key) => {
+      const table = { 'open.default': '系统默认程序', 'open.notepad': '记事本' }
+      return Object.prototype.hasOwnProperty.call(table, key) ? table[key] : key
+    }
+
+    // A built-in is an id the panel translates: its name is copy, not data.
+    assert.equal(internals.openerName(t, { id: 'default' }), '系统默认程序')
+    assert.equal(internals.openerName(t, { id: 'notepad' }), '记事本')
+
+    // A configured entry is the user's own text, under an id nobody can translate.
+    assert.equal(internals.openerName(t, { id: 'custom:0', label: 'VS Code' }), 'VS Code')
+    // A label of pure whitespace is no label: the id is more honest than a blank row.
+    assert.equal(internals.openerName(t, { id: 'custom:1', label: '   ' }), 'custom:1')
+
+    // An id this build has no copy for falls back to the id itself: a platform
+    // entry the dictionaries have not caught up with must still render a row.
+    assert.equal(internals.openerName(t, { id: 'reveal' }), 'reveal')
+    assert.equal(internals.openerName(t, null), '')
+  })
+
   it('read the diff tab’s target out of its navigation params', () => {
     assert.deepEqual(internals.diffTarget({ source: 'worktree', path: 'a.txt' }), { source: 'worktree', path: 'a.txt' })
     assert.deepEqual(internals.diffTarget({ source: 'trash', id: 'abc' }), { source: 'trash', id: 'abc' })

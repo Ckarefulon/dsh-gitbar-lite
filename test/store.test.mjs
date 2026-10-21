@@ -188,25 +188,30 @@ describe('bindings', () => {
 describe('preferences', () => {
   it('starts with the safe answers', async () => {
     const { store } = await makeStore()
-    assert.deepEqual(await store.readPrefs(), { trashHardDelete: false, trashShowAllRepos: false })
+    assert.deepEqual(await store.readPrefs(), { trashHardDelete: false, trashShowAllRepos: false, openWith: '' })
   })
 
   it('merges a patch instead of replacing the document', async () => {
     const { store } = await makeStore()
     await store.writePrefs({ trashHardDelete: true })
     await store.writePrefs({ trashShowAllRepos: true })
-    assert.deepEqual(await store.readPrefs(), { trashHardDelete: true, trashShowAllRepos: true })
+    await store.writePrefs({ openWith: 'notepad' })
+    assert.deepEqual(await store.readPrefs(), { trashHardDelete: true, trashShowAllRepos: true, openWith: 'notepad' })
+    // ...and a later patch that says nothing about the program leaves it alone:
+    // ticking "delete for good" must not forget which editor the user picked.
+    await store.writePrefs({ trashHardDelete: false })
+    assert.deepEqual(await store.readPrefs(), { trashHardDelete: false, trashShowAllRepos: true, openWith: 'notepad' })
   })
 
-  it('reads back only booleans, whatever was on disk', async () => {
+  it('reads back only what it can trust, whatever was on disk', async () => {
     const { store } = await makeStore()
     await mkdir(store.baseDir(), { recursive: true })
     await writeFile(
       store.prefsPath(),
-      JSON.stringify({ version: 1, trashHardDelete: 'yes', trashShowAllRepos: 1 }),
+      JSON.stringify({ version: 1, trashHardDelete: 'yes', trashShowAllRepos: 1, openWith: 42 }),
       'utf8',
     )
-    assert.deepEqual(await store.readPrefs(), { trashHardDelete: false, trashShowAllRepos: false })
+    assert.deepEqual(await store.readPrefs(), { trashHardDelete: false, trashShowAllRepos: false, openWith: '' })
   })
 })
 

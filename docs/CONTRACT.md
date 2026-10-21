@@ -89,6 +89,8 @@ the host sends is already user-facing (Chinese), and the browser half localises
 | `runScript` | `sessionId` | `{ ran, exitCode?, stdout?, stderr? }` — nothing is thrown for a non-zero exit |
 | `saveScript` | `sessionId`, `script` | `{ summaryScript, script }` — an empty `script` clears it |
 | `prefs` | `sessionId`, `trashHardDelete?`, `trashShowAllRepos?` | `{ prefs }` |
+| `openers` | — | `{ openers: [{ id, label? }], last }` — no session, no repository: the menu is about the machine |
+| `openFile` | `sessionId`, `path`, `opener?` | `{ opened: { id, path } }` — the program runs on the host, and the choice becomes `prefs.openWith` |
 
 `paths: null` on `discard` means *every changed file*; an explicit array means
 exactly those paths. An array that matches nothing is an `E_BAD_REQUEST`, and a
@@ -107,7 +109,7 @@ archive.
             staged, partial, added, deleted, binary, synthesized? }],
   counts: { files, staged, partial, conflicted, additions, deletions },
   primary: 'push' | 'publish' | 'fetch',
-  prefs: { trashHardDelete, trashShowAllRepos },
+  prefs: { trashHardDelete, trashShowAllRepos, openWith },
   summaryScript
 }
 ```
@@ -124,7 +126,8 @@ trash can say "against `a1b2c3d` *init*" and mean it.
 `E_BAD_REQUEST` · `E_UNKNOWN_ACTION` · `E_NO_WORKSPACE` · `E_NO_REPO` ·
 `E_NO_GIT` · `E_EMPTY_SUMMARY` · `E_NOTHING_STAGED` · `E_CONFLICT` ·
 `E_GIT_FAILED` · `E_NO_REMOTE` · `E_NO_UPSTREAM` · `E_AUTH` · `E_PUSH_REJECTED` ·
-`E_TRASH_NOT_FOUND` · `E_INTERNAL`.
+`E_TRASH_NOT_FOUND` · `E_TRASH_NOT_RESTORABLE` · `E_NO_FILE` · `E_NO_OPENER` ·
+`E_INTERNAL`.
 
 `E_AUTH` and `E_PUSH_REJECTED` exist so the panel can say the one useful
 sentence for each instead of pasting git's stderr. Both are derived by pattern
@@ -145,7 +148,7 @@ the same trap `dsh-tailscale-remote` documents.
 
 ```
 bindings.json   { version, bindings: { <canonical workspace path>: { repoRoot, workspacePath, updatedAt } } }
-prefs.json      { version, trashHardDelete, trashShowAllRepos }
+prefs.json      { version, trashHardDelete, trashShowAllRepos, openWith }
 scripts.json    { version, scripts: { <canonical repository path>: script } }
 trash/index.json  { version, entries: [ ... ] }
 trash/<id>.diff   the archived diff, one file per discard operation
@@ -194,6 +197,28 @@ pathspec-limited commit would quietly break.
 The two user-visible consequences, stated plainly: the plugin *does* mutate your
 index (that is the point — GitHub Desktop does the same), and a file you staged
 by hand shows up ticked, because it is.
+
+**Which paths a refresh ticks.** The list is re-read on open, on return, and when
+the refresh button is pressed, and that re-read is where select-by-default runs.
+It runs per *path*, against the list the panel last saw:
+
+- a path that has just appeared is `git add`ed;
+- a path that was already in the list is left exactly as it is, so a refresh
+  never quietly re-takes a file the user unticked — and a new file appearing
+  never drags the previous batch back in with it;
+- the first look after a mount has no earlier list to compare against, so it
+  falls back to "tick everything **while the index is empty**". A non-empty index
+  means a terminal, or an earlier session, already chose; re-ticking on top of a
+  choice the panel cannot see the history of is the one thing it must not do
+  unasked;
+- a commit forgets the remembered list, so the post-commit list is looked at as a
+  first look and the remaining changes are re-offered under that same rule;
+- conflicted paths and half-staged (`MM`) paths are never ticked automatically.
+  The first would record a resolution nobody made; the second is a state somebody
+  chose that a single tick cannot express.
+
+Remembering the list is also the loop guard: the paths are recorded before the
+`git add` leaves, so a failing request does not retry on the next render.
 
 ---
 
@@ -304,6 +329,51 @@ same session is a normal author of those changes.
 
 ---
 
+## 7a. Handing a file to the user's own program
+
+The diff tab's header carries two controls: one button that opens the file in the
+program used last, and a caret that opens a menu of every program the host offers.
+
+**It has to be the host.** The file is on the host's disk and the program has to
+run where the file is. A browser tab cannot start `notepad.exe`, and on a remote
+client (Tailscale, a second machine) it should not even try: "open this file"
+means on the machine holding the repository. The one-line confirmation after a
+press exists for exactly that case — locally the window appearing *is* the answer,
+remotely nothing else would be.
+
+**It is not a "run this command" endpoint.** The repository root is resolved by
+the host, the path is confined to it by the same `absoluteIn` check every other
+file action uses, the program has to be one the host itself listed, and the
+arguments come from that listing — a client names an id, never an executable.
+Four refusals follow from that and are asserted in `test/e2e.mjs` S24: a path
+above the root, an absolute path outside it, an id nobody offered, and a file that
+is no longer on disk (404, `E_NO_FILE`).
+
+**The three built-ins are ids, not names.** `default`, then the platform's plain
+editor (`notepad` / `editor`) and its "show in folder" (`reveal`). The copy lives
+in the client's two dictionaries, so the same id reads in either language; only a
+`Config.openWith` entry carries a label, because only the user knows what to call
+it. A Linux build offers two, not three, rather than naming an editor that may not
+be installed.
+
+**`{path}` and `{dir}` are template arguments, not a shell string.** Each item is
+already one argument all the way to the child, so a path with a space stays one
+argument. An entry with neither placeholder has the path appended, which is the
+obvious reading of `command: notepad.exe` with nothing else written.
+
+**The program's exit is not waited for.** An editor stays open for as long as the
+user keeps it, so a request that waited would sit on it until `timeoutMs` killed
+the thing it launched. What the host does check, before spawning, is that the
+program resolves — a missing `openWith` command answers `E_NO_OPENER` instead of
+a child that fails a moment after the panel has already said it worked.
+
+**The choice is remembered, as `prefs.openWith`.** Recorded by the action rather
+than by a second call, so the button cannot open with one program while the
+preference says another. An id that no longer names anything (a config edited
+since) reads as "the default" rather than as an empty menu.
+
+---
+
 ## 8. Configuration
 
 Every field is volatile, which is what lets the settings page edit them without a
@@ -320,6 +390,7 @@ this package on the next upgrade.
 | `maxFileBytes` | `2097152` | Larger untracked files are listed but their content is not read, archived, or diffed. |
 | `trashLimit` | `200` | Entries kept; the oldest are dropped and their blobs deleted. |
 | `scanDepth` | `3` | Directory depth the picker scans below the workspace root. |
+| `openWith` | `[]` | Extra programs for the diff tab's menu, on top of the platform's three. A row is `{ label, command, args }`; each arg is one argument, `{path}`/`{dir}` are substituted, and an entry with neither gets the path appended. A half-written row (no label or no command) is skipped rather than thrown on, so a typo cannot park the plugin. |
 
 ---
 
@@ -335,7 +406,7 @@ this package on the next upgrade.
 | the route carrier, single registration under a hostile service order, error classification | `test/index.test.mjs` |
 | every registration identity, the wire literals, the dictionaries, and the hook-free components' rendered trees | `test/client.test.mjs` |
 | that every registered seat **renders** — the bodies, hidden states, and no-session states | `test/seats.test.mjs` |
-| the whole host stack against **real git**, mutation by mutation | `test/e2e.mjs`, 294 assertions over 23 sections that build their own fixtures |
+| the whole host stack against **real git**, mutation by mutation | `test/e2e.mjs`, 318 assertions over 24 sections that build their own fixtures (S24 starts a real child for the open-with menu) |
 | the manifest, the patch layer, the tarball's contents, the two copies of the wire contract, the dictionaries, the workflow | `test/check.mjs` |
 | that the client bundle would not abort the Host boot | `scripts/check-client-bundle.mjs` |
 
@@ -423,3 +494,7 @@ show the index claim rather than assume it.
   is honest but is not a backup.
 - An untracked file over `maxFileBytes` is deleted with only a stub in the
   archive. The confirmation box does not yet warn about that specifically.
+- "Open with" starts the program on the **host**, so a remote client sees the
+  window on the machine that holds the repository, not on the screen in front of
+  them. It is also confined to files inside the bound repository: a diff of a trash
+  entry has nothing on disk to hand over, and the control is not offered there.

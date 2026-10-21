@@ -218,6 +218,7 @@ eq('Config has exactly these fields', Object.keys(defaults).sort(), [
   'gitPath',
   'maxDiffBytes',
   'maxFileBytes',
+  'openWith',
   'scanDepth',
   'stateDir',
   'summaryScript',

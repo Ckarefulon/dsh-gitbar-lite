@@ -404,3 +404,109 @@ test('each body also renders when its tab is hidden and when it has no session',
     )
   }
 })
+
+test('the diff tab hands the file to a program, and the menu offers the ones the host listed', () => {
+  const bundle = loadBundle()
+  const { ctx, seats } = createCtx()
+  bundle.apply(ctx)
+
+  const body = seats.find((seat) => seat.name === 'sidebar.right.pane.tab' && seat.key === 'dsh-gitbar-lite/diff')
+  assert.equal(typeof body?.component, 'function', 'the diff body is registered')
+
+  const diff = { text: 'diff --git a/a.txt b/a.txt\n+one\n', added: 1, deleted: 0, binary: false, truncated: false }
+  // What the host answers for a machine with one configured program: two
+  // built-ins named by id, one named by the user, and "notepad" remembered.
+  const openers = { list: [{ id: 'default' }, { id: 'notepad' }, { id: 'custom:0', label: 'VS Code' }], last: 'notepad' }
+  const worktree = { source: 'worktree', path: 'a.txt' }
+
+  // The real dictionary rather than the key-echoing stub, because part of the
+  // point here is that the panel has copy for every built-in id the host sends.
+  const { ZH, interpolate } = bundle.internals
+  const t = (key, params) => interpolate(Object.prototype.hasOwnProperty.call(ZH, key) ? ZH[key] : key, params)
+
+  const render = (params) =>
+    bundle.renderChecked(
+      'DiffBody',
+      body.component,
+      bodyProps(ctx, {
+        t,
+        tab: { navigation: { address: 'dsh-resource://dsh-gitbar-lite/diff/current', params, revision: 1 } },
+      }),
+    )
+
+  const findFirst = (node, predicate) => {
+    if (node === null || node === undefined || typeof node !== 'object') return null
+    if (Array.isArray(node)) {
+      for (const child of node) {
+        const hit = findFirst(child, predicate)
+        if (hit !== null) return hit
+      }
+      return null
+    }
+    if (predicate(node)) return node
+    for (const child of node.children ?? []) {
+      const hit = findFirst(child, predicate)
+      if (hit !== null) return hit
+    }
+    return null
+  }
+
+  // The two controls are `<IconButton>`s, and this stub does not descend into
+  // components, so their attributes are still where `IconButton` takes them: in
+  // `props.attrs`. A node that rendered them itself would carry them on `props`.
+  const attr = (node, name) => node?.props?.[name] ?? node?.props?.attrs?.[name]
+  const findAttr = (tree, name) => findFirst(tree, (node) => attr(node, name) !== undefined)
+
+  // The loading render first: comparing the hook count of the two is what catches
+  // a hook added below an early return, which is what blanked the panel once.
+  bundle.seed([null, 'loading', null, null, false, null])
+  render(worktree)
+  bundle.seed([diff, 'ready', null, openers, false, null])
+  const ready = render(worktree)
+
+  // One button opens straight away, with the program used last — that is the
+  // whole point of remembering it — and its tooltip names that program.
+  const openButton = findAttr(ready, 'data-gitbar-open')
+  assert.ok(openButton !== null, 'the open button is rendered')
+  assert.equal(attr(openButton, 'data-gitbar-open'), 'notepad')
+  assert.equal(openButton.props.label, '用 记事本 打开')
+  assert.equal(openButton.props.disabled, undefined, 'it is clickable as soon as the list arrives')
+
+  const caret = findAttr(ready, 'data-gitbar-openmenu')
+  assert.ok(caret !== null, 'the menu toggle is rendered')
+  assert.equal(attr(caret, 'data-gitbar-openmenu'), 'closed')
+  assert.equal(findAttr(ready, 'data-gitbar-menu'), null, 'and the menu is not')
+
+  // Open: one row per program the host listed, with the remembered one marked and
+  // the configured entry wearing its own name rather than an id.
+  bundle.seed([diff, 'ready', null, openers, true, null])
+  const expanded = render(worktree)
+  const menu = findAttr(expanded, 'data-gitbar-menu')
+  assert.ok(menu !== null, 'the menu is rendered')
+  const rows = []
+  const collect = (node) => {
+    if (node === null || node === undefined || typeof node !== 'object') return
+    if (Array.isArray(node)) {
+      for (const child of node) collect(child)
+      return
+    }
+    if (node.props?.['data-gitbar-opener'] !== undefined) rows.push(node)
+    for (const child of node.children ?? []) collect(child)
+  }
+  collect(menu)
+  assert.deepEqual(rows.map((row) => row.props['data-gitbar-opener']), ['default', 'notepad', 'custom:0'])
+  assert.deepEqual(rows.map((row) => row.props['aria-checked']), ['false', 'true', 'false'])
+  const labelOf = (row) => {
+    const label = findFirst(row, (node) => node.props?.className === 'gitbar-menuLabel')
+    assert.ok(label !== null, 'the row has a label')
+    return [].concat(label.children).join('')
+  }
+  assert.deepEqual(rows.map(labelOf), ['系统默认程序', '记事本', 'VS Code'])
+
+  // A trash entry has no file on disk to hand to anything, so the control is not
+  // there at all — a disabled button would invite a press that could never work.
+  bundle.seed([diff, 'ready', null, openers, false, null])
+  const trash = render({ source: 'trash', id: 'entry-1' })
+  assert.equal(findAttr(trash, 'data-gitbar-open'), null, 'no open button for a trash entry')
+  assert.equal(findAttr(trash, 'data-gitbar-openmenu'), null, 'and no menu toggle either')
+})

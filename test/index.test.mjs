@@ -124,6 +124,7 @@ describe('Config', () => {
       scanDepth: 3,
       autoFetchMs: 300000,
       summaryScript: '',
+      openWith: [],
     })
   })
 
@@ -278,6 +279,8 @@ describe('the action surface', () => {
       'discard',
       'fetch',
       'fileDiff',
+      'openFile',
+      'openers',
       'prefs',
       'push',
       'repos',

@@ -34,6 +34,7 @@ import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 
 import { GitFailure, createGit } from '../lib/host/git.js'
+import { createOpener } from '../lib/host/open.js'
 import { createRepo } from '../lib/host/repo.js'
 import { createHandlers, createRoute } from '../lib/host/routes.js'
 import { createStore } from '../lib/host/store.js'
@@ -189,7 +190,7 @@ async function freshRepo(name) {
 }
 
 /** The plugin, wired the way the Loader wires it, on top of a doubled subprocess. */
-function createHarness({ workspacePath, stateDir, summaryScript }) {
+function createHarness({ workspacePath, stateDir, summaryScript, openWith }) {
   const spawns = []
   const subprocess = createFakeSubprocess({ capture: (entry) => spawns.push(entry) })
   const services = {}
@@ -211,11 +212,17 @@ function createHarness({ workspacePath, stateDir, summaryScript }) {
     },
   }
 
-  const config = readConfig({ stateDir, timeoutMs: 60000, ...(summaryScript === undefined ? {} : { summaryScript }) })
+  const config = readConfig({
+    stateDir,
+    timeoutMs: 60000,
+    ...(summaryScript === undefined ? {} : { summaryScript }),
+    ...(openWith === undefined ? {} : { openWith }),
+  })
   const gitRunner = createGit(ctx, config)
   const store = createStore(ctx, config)
   const repo = createRepo(gitRunner, config)
-  const handlers = createHandlers({ ctx, git: gitRunner, repo, store })
+  const opener = createOpener(ctx, config)
+  const handlers = createHandlers({ ctx, git: gitRunner, repo, store, opener })
   const route = createRoute({ handlers })
 
   /** Call one action through the real route, exactly as the browser half does. */
@@ -240,7 +247,27 @@ function createHarness({ workspacePath, stateDir, summaryScript }) {
   /** The file entry for one path in a status payload. */
   const fileOf = (payload, path) => (payload.files ?? []).find((file) => file.path === path)
 
-  return { ctx, subprocess, config, git: gitRunner, store, repo, handlers, route, call, expectFailure, spawns, fileOf }
+  return { ctx, subprocess, config, git: gitRunner, store, repo, opener, handlers, route, call, expectFailure, spawns, fileOf }
+}
+
+/**
+ * Wait for something a fire-and-forget child does.
+ *
+ * Opening a file returns as soon as the child is started — an editor outlives the
+ * request — so the only honest way to assert that the program really ran is to
+ * wait for the mark it leaves.
+ */
+async function waitFor(predicate, timeoutMs = 8000) {
+  const startedAt = Date.now()
+  while (Date.now() - startedAt < timeoutMs) {
+    try {
+      if (await predicate()) return true
+    } catch {
+      // Not there yet.
+    }
+    await new Promise((resolve) => setTimeout(resolve, 50))
+  }
+  return false
 }
 
 /** Read a JSON file from the plugin's state directory. */
@@ -1280,6 +1307,115 @@ async function main() {
       (await harness.call(ACTIONS.STATUS, { sessionId: SESSION })).body.summaryScript,
       '',
     )
+  }
+
+  // ------------------------- S24: opening a file in the user's own program
+
+  section('S24 the diff tab can hand a file to the user own program')
+  {
+    const workspace = await freshRepo('repo-open')
+    const stateDir = join(scratch, 'state-24')
+    await put(join(workspace, 'a.txt'), 'first\n')
+    await commitAll(workspace, 'a file to open')
+    // A path that is certainly outside the repository, so the containment check
+    // has something real to refuse rather than a guess.
+    const outside = join(scratch, 'outside-open.txt')
+    await put(outside, 'not yours\n')
+
+    // Two configured programs, both this Node binary: the real program-open path
+    // is exercised (a child really starts) without a GUI editor in the way. The
+    // first writes down the file it was handed; the second only allows the argv
+    // to be inspected.
+    const marker = join(scratch, 'opened-by-probe.txt')
+    const openWith = [
+      {
+        label: 'Probe',
+        command: process.execPath,
+        args: [
+          '-e',
+          'require("node:fs").writeFileSync(process.argv[2], process.argv[1], "utf8")',
+          '{path}',
+          marker,
+        ],
+      },
+      { label: 'Bare', command: process.execPath, args: ['-e', 'process.exit(0)'] },
+    ]
+    const harness = createHarness({ workspacePath: workspace, stateDir, openWith })
+
+    // --- the menu -----------------------------------------------------------
+
+    const listed = await harness.call(ACTIONS.OPENERS, {})
+    const ids = (listed.body.openers ?? []).map((row) => row.id)
+    ok('the platform built-ins are offered', ids.includes('default') && ids.includes('reveal'), ids)
+    eq('and the configured programs are too', ids.slice(-2), ['custom:0', 'custom:1'])
+    eq(
+      'a configured program keeps its own name, and a built-in has none to keep',
+      (listed.body.openers ?? []).filter((row) => row.label !== undefined).map((row) => row.label),
+      ['Probe', 'Bare'],
+    )
+    eq('with nothing remembered, the default is preselected', listed.body.last, 'default')
+
+    // --- opening really starts the program ----------------------------------
+
+    const target = join(workspace, 'a.txt')
+    const opened = await harness.call(ACTIONS.OPEN_FILE, { sessionId: SESSION, path: 'a.txt', opener: 'custom:0' })
+    eq('opening is accepted', opened.body.ok, true)
+    eq('and names the program that was used', opened.body.opened?.id, 'custom:0')
+
+    const spawned = harness.spawns.at(-1)
+    eq('the program is the configured one', spawned?.argv[0], process.execPath)
+    eq('the {path} placeholder became the absolute path', spawned?.argv[3], target)
+    eq('the repository is the working directory', spawned?.cwd, workspace)
+    ok(
+      'and the program actually ran, with the file it was handed',
+      await waitFor(async () => (await readFile(marker, 'utf8')) === target),
+      await readFile(marker, 'utf8').catch(() => '(no marker)'),
+    )
+
+    // --- the choice is remembered, as a preference --------------------------
+
+    eq('the last program used is remembered', (await harness.call(ACTIONS.OPENERS, {})).body.last, 'custom:0')
+    eq('it is stored as a preference', (await harness.call(ACTIONS.PREFS, {})).body.prefs.openWith, 'custom:0')
+    // A preference left behind by a config that no longer offers that entry must
+    // read as "the default", not as a menu with nothing preselected in it.
+    await harness.store.writePrefs({ openWith: 'from-an-older-config' })
+    eq('a preference naming a program that is gone falls back to the default', (await harness.call(ACTIONS.OPENERS, {})).body.last, 'default')
+
+    // --- an entry with no placeholder gets the path appended ---------------
+
+    await harness.call(ACTIONS.OPEN_FILE, { sessionId: SESSION, path: 'a.txt', opener: 'custom:1' })
+    const bare = harness.spawns.at(-1)
+    eq('an entry with no placeholder has the path appended', bare?.argv.slice(-1), [target])
+    eq('and its own arguments are left alone', bare?.argv.slice(0, 3), [process.execPath, '-e', 'process.exit(0)'])
+
+    // --- what it refuses ----------------------------------------------------
+
+    // git spawns children of its own while a refusal is being worked out (the
+    // binding is re-resolved first), so "nothing was opened" has to count the
+    // programs, not every child.
+    const programs = () => harness.spawns.filter((entry) => entry.argv[0] === process.execPath).length
+    const started = programs()
+    // The first three are the containment rules; each is a request a browser half
+    // could send, and none of them may reach an executable.
+    const escaped = await harness.call(ACTIONS.OPEN_FILE, { sessionId: SESSION, path: outside, opener: 'custom:0' })
+    ok('an absolute path outside the repository is refused', escaped.body.ok === false && escaped.body.error.code === ERROR_CODES.BAD_REQUEST, escaped.body)
+    const climbed = await harness.call(ACTIONS.OPEN_FILE, { sessionId: SESSION, path: '../outside-open.txt', opener: 'custom:0' })
+    ok('and so is a relative one that climbs out', climbed.body.ok === false && climbed.body.error.code === ERROR_CODES.BAD_REQUEST, climbed.body)
+    const unknown = await harness.call(ACTIONS.OPEN_FILE, { sessionId: SESSION, path: 'a.txt', opener: 'not-a-program' })
+    ok('a program the host never offered is refused', unknown.body.ok === false && unknown.body.error.code === ERROR_CODES.BAD_REQUEST, unknown.body)
+    const gone = await harness.call(ACTIONS.OPEN_FILE, { sessionId: SESSION, path: 'never-existed.txt', opener: 'default' })
+    ok('a file that is not on disk is a 404, not a crash', gone.status === 404 && gone.body.error.code === ERROR_CODES.NO_FILE, gone.body)
+    eq('and not one of those started a program', programs(), started)
+
+    // A configured command that does not exist is the one failure `spawn` can
+    // report honestly, because it throws synchronously.
+    const broken = createHarness({
+      workspacePath: workspace,
+      stateDir: join(scratch, 'state-24b'),
+      openWith: [{ label: 'Nope', command: 'gitbar-no-such-program', args: ['{path}'] }],
+    })
+    const unstartable = await broken.call(ACTIONS.OPEN_FILE, { sessionId: SESSION, path: 'a.txt', opener: 'custom:0' })
+    ok('a program that cannot be started says so', unstartable.body.ok === false && unstartable.body.error.code === ERROR_CODES.NO_OPENER, unstartable.body)
   }
 
   console.log('')

@@ -1,6 +1,8 @@
 /**
  * "Looked at again": the panel re-reads the list and lets the script fill the
  * Summary — on open, on return, and never at the cost of what the user typed.
+ * A re-read also decides which files look newly arrived and tick them, so this
+ * file covers that rule too: what a refresh ticks, and what it must not.
  *
  * Why this file exists
  * -------------------
@@ -176,7 +178,7 @@ function createRuntime() {
 /**
  * Load the real bundle against a fake host and return a tiny driver.
  *
- * @param {{ script?: string, summary?: string }} [options]
+ * @param {{ script?: string, files?: Array<{ path: string, staged?: boolean, partial?: boolean, conflicted?: boolean, kind?: string }> }} [options]
  */
 function createPanel(options = {}) {
   const runtime = createRuntime()
@@ -192,6 +194,7 @@ function createPanel(options = {}) {
   }
 
   const calls = []
+  const stages = []
   let stored = options.script ?? ''
   const statusFields = {
     workspacePath: 'C:/work',
@@ -199,8 +202,6 @@ function createPanel(options = {}) {
     source: 'binding',
     repoRoot: 'C:/work/repo',
     repoName: 'repo',
-    files: [],
-    counts: { files: 0, staged: 0 },
     branch: { head: 'main', upstream: 'origin/main', ahead: 0, behind: 0 },
     remotes: ['origin'],
     prefs: {},
@@ -209,9 +210,51 @@ function createPanel(options = {}) {
     autoFetchMs: 0,
   }
 
+  // A working tree the test can move: the panel's tick *is* the index, so a fake
+  // host has to answer `status` from a real mutable list and let `stage` change
+  // it, or the select-by-default rule cannot be observed at all.
+  const repo = {
+    files: (options.files ?? []).map((file) => ({
+      staged: false,
+      partial: false,
+      conflicted: false,
+      kind: 'modified',
+      ...file,
+    })),
+    /** The worktree changed: a new path shows up unticked. */
+    add(file) {
+      this.files.push({ staged: false, partial: false, conflicted: false, kind: 'untracked', ...file })
+    },
+    /** What `git add` / `git restore --staged` did, as the host would report it. */
+    apply(paths, staged) {
+      const wanted = new Set(paths)
+      for (const file of this.files) {
+        if (!wanted.has(file.path)) continue
+        file.staged = staged === true
+        file.partial = false
+      }
+    },
+    ticked(path) {
+      return this.files.find((file) => file.path === path)?.staged === true
+    },
+  }
+
+  const snapshot = () => repo.files.map((file) => ({ ...file }))
+  const tally = () => ({
+    files: repo.files.length,
+    staged: repo.files.filter((file) => file.staged === true && file.conflicted !== true).length,
+    conflicted: repo.files.filter((file) => file.conflicted === true).length,
+  })
+  const status = () => ({ ...statusFields, files: snapshot(), counts: tally(), summaryScript: stored })
+
   const answer = async (action, body) => {
     calls.push(action)
-    if (action === 'status') return { ...statusFields, summaryScript: stored }
+    if (action === 'status') return status()
+    if (action === 'stage') {
+      stages.push({ paths: [...body.paths], staged: body.staged === true })
+      repo.apply(body.paths, body.staged)
+      return status()
+    }
     if (action === 'saveScript') {
       stored = body.script
       return { summaryScript: stored, script: stored }
@@ -303,11 +346,20 @@ function createPanel(options = {}) {
     pump: runtime.pump,
     window,
     calls,
+    stages,
+    repo,
     summaryValue,
     typeSummary(value) {
       const input = runtime.elements().find((host) => host.props['data-gitbar-summary'] !== undefined)
       input.props.onChange({ target: { value } })
       return runtime.pump('type')
+    },
+    /** Press one row's tick, the way a user unticking a file does. */
+    async untick(path) {
+      const row = runtime.elements().find((host) => host.props['data-gitbar-tick'] === path)
+      assert.ok(row !== undefined, `the row for ${path} is rendered`)
+      row.props.onClick({ stopPropagation() {} })
+      await runtime.pump('untick')
     },
     /** Fire a return and let the debounce plus the read settle. */
     async returnTo() {
@@ -404,4 +456,82 @@ test('switching the tab away and back is a return even inside the cooldown', asy
   // Straight from the open, well inside the cooldown.
   await panel.switchAwayAndBack()
   assert.deepEqual(panel.calls, ['status', 'runScript', 'status', 'runScript'])
+})
+
+// ------------------------------------------------- which paths a refresh ticks
+
+test('opening a repository with an empty index ticks every changed file', async () => {
+  const panel = createPanel({ files: [{ path: 'a.txt' }, { path: 'b.txt' }, { path: 'new.txt', kind: 'untracked' }] })
+  await panel.mount()
+  assert.deepEqual(panel.stages, [{ paths: ['a.txt', 'b.txt', 'new.txt'], staged: true }])
+  assert.equal(panel.repo.ticked('new.txt'), true)
+  // One read, one select-all call, and nothing after it: the list it produced is
+  // fully ticked, so there is nothing left to offer.
+  assert.deepEqual(panel.calls, ['status', 'stage'])
+})
+
+test('a file that appears while the panel is away is ticked, and the one the user unticked is not', async () => {
+  const panel = createPanel({ files: [{ path: 'a.txt' }, { path: 'b.txt' }] })
+  await panel.mount()
+  assert.deepEqual(panel.stages.at(-1).paths, ['a.txt', 'b.txt'])
+
+  // The user decides b.txt is not part of this commit.
+  await panel.untick('b.txt')
+  assert.equal(panel.repo.ticked('b.txt'), false)
+
+  // The worktree moves on while the panel is not being looked at.
+  panel.repo.add({ path: 'c.txt', kind: 'untracked' })
+  await panel.returnTo()
+
+  // Only the newcomer is ticked. Keying on the whole list — which is what this
+  // did before — would have re-ticked b.txt here, because the list no longer
+  // matched the set the guard had recorded, and that is the bug this asserts.
+  assert.deepEqual(panel.stages.at(-1), { paths: ['c.txt'], staged: true })
+  assert.equal(panel.repo.ticked('c.txt'), true)
+  assert.equal(panel.repo.ticked('b.txt'), false)
+  assert.equal(panel.repo.ticked('a.txt'), true)
+})
+
+test('a return with nothing new ticks nothing', async () => {
+  const panel = createPanel({ files: [{ path: 'a.txt' }] })
+  await panel.mount()
+  await panel.untick('a.txt')
+  const before = panel.stages.length
+  await panel.returnTo()
+  assert.equal(panel.stages.length, before, 'the untick survived the refresh')
+  assert.equal(panel.repo.ticked('a.txt'), false)
+})
+
+test('opening a repository whose index is not empty leaves the existing choice alone', async () => {
+  // Somebody had already curated the index — here: a.txt staged, b.txt not. The
+  // first look has no earlier list to compare against, so it must not re-tick on
+  // top of a choice it cannot see the history of.
+  const panel = createPanel({ files: [{ path: 'a.txt', staged: true }, { path: 'b.txt' }] })
+  await panel.mount()
+  assert.deepEqual(panel.stages, [])
+  assert.equal(panel.repo.ticked('b.txt'), false)
+
+  // From then on the list is remembered, so a newcomer is still ticked.
+  panel.repo.add({ path: 'c.txt', kind: 'untracked' })
+  await panel.returnTo()
+  assert.deepEqual(panel.stages, [{ paths: ['c.txt'], staged: true }])
+})
+
+test('a conflicted path is never ticked by the rule, and neither is a half-staged one', async () => {
+  const panel = createPanel({ files: [{ path: 'a.txt' }] })
+  await panel.mount()
+  assert.deepEqual(panel.stages, [{ paths: ['a.txt'], staged: true }])
+
+  // A merge clash, a path somebody half-staged in a terminal, and an ordinary
+  // newcomer, all arriving at once.
+  panel.repo.add({ path: 'clash.txt', conflicted: true })
+  panel.repo.add({ path: 'half.txt', partial: true })
+  panel.repo.add({ path: 'd.txt', kind: 'untracked' })
+  await panel.returnTo()
+
+  // `git add` on a conflicted file records a resolution nobody made, and `MM` is
+  // a state somebody chose that one tick cannot express. Only d.txt is ticked.
+  assert.deepEqual(panel.stages.at(-1), { paths: ['d.txt'], staged: true })
+  assert.equal(panel.repo.ticked('clash.txt'), false)
+  assert.equal(panel.repo.ticked('half.txt'), false)
 })

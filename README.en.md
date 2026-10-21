@@ -20,6 +20,7 @@ The column is narrow (300px minimum, and a narrow viewport makes it full-screen)
 | Ticking | **A tick is a real `git add`**; unticking is `git restore --staged`. What a terminal's `git status` shows is the same thing |
 | Half-staged files | When the index and the worktree are both dirty the tick renders indeterminate; either click restates the file as a whole |
 | Select all | A tri-state box left of the list heading: tick everything, untick everything, and it reads as mixed when the selection is partial. **Conflicted files are excluded**, the same rule the automatic selection follows |
+| Automatic selection | **A refresh looks at what is new, not at what was chosen last time.** After the list is re-read, changes that have just appeared are ticked, and files that were already in the list are left exactly as you left them — so a refresh **never** re-takes a file you just unticked. Conflicted files and half-staged files are never ticked automatically. **The first look** (and the one right after a commit) keeps the original opening rule: tick everything while the index is empty; a non-empty index means someone already chose, so it is left alone |
 | Summary / Description | Summary is one always-visible line; the triangle at its right reveals Description |
 | Commit | Commits exactly what is ticked — because ticking wrote the index |
 | Commit and Push | Commits, then pushes. **A failed push never claims the commit failed**: the commit happened, and the panel says "committed `abc1234`, but the push failed" |
@@ -30,6 +31,7 @@ The column is narrow (300px minimum, and a narrow viewport makes it full-screen)
 | Discard | One file or all of them; the diff is archived *before* anything is restored, and the confirmation offers "delete for good" |
 | Trash | Its own tab. Every discard keeps a diff, recorded **against the commit it was taken from** (`abc1234 initial commit`) |
 | Diff preview | Double-click a file, or a trash entry, to open a diff tab in the column — **one tab, ever**, re-navigated in place |
+| Open in another program | A button in the diff tab's top-right corner opens the file in **the program used last**; the caret beside it lists everything available: the system default, Notepad, and "show in folder". The program starts on the **host** — so on a phone over Tailscale the window opens on the computer — and the panel says "opened with Notepad" so that is not a guess. Add your own editor with `openWith` in the config |
 | Repository binding | A workspace that is itself a repository binds automatically and is remembered; otherwise pick from the repositories found under the workspace, or type a path |
 
 ## Requirements
@@ -182,6 +184,7 @@ you can judge for yourself.
 | `scanDepth` | `3` | Directory depth the picker scans below the workspace root |
 | `autoFetchMs` | `300000` | How often the panel fetches on its own; `0` disables it, leaving the manual button |
 | `summaryScript` | `""` | A script that fills the Summary. It runs with the repository root as its working directory and whatever it prints becomes the Summary; a line reading `---` starts the Description |
+| `openWith` | `[]` | Extra programs for the diff tab's "open with" menu, on top of the platform's own three. Each row is `{ label, command, args }`; in `args`, `{path}` becomes the file and `{dir}` its directory, and an entry with neither has the path appended (e.g. `- label: VS Code` / `command: code` / `args: ['{path}']`). Every item is already **one argument**, not a shell command line, so a path with spaces is never split |
 
 Every field is volatile, so a change on the settings page takes effect without a restart.
 
@@ -249,6 +252,7 @@ npm run test:live # probe a running DSH (not part of npm test; needs the app run
 | `test/index.test.mjs` | Config fields and defaults, **the route carrier and single registration**, error-code mapping |
 | `test/client.test.mjs` | the real bundle loaded from the manifest's exact path; the three tab types' ids/kinds/guide/keepMounted; every slot key being a registered id; both dictionaries and every failure code; the three hook-free components asserted on their element trees |
 | `test/seats.test.mjs` | **every registered seat rendered**, including hidden and no-session states. This one closes a blind spot: `client.test.mjs` never renders the three bodies, and a render-time error in a body blanks the whole panel — which really happened (a `const` named by a dependency array before it was declared threw a ReferenceError and white-screened the panel while the rest of the suite stayed green) |
+| `test/focus.test.mjs` | **the only suite that runs effects**: the real bundle against a small React (state, effects with dependency comparison, callbacks, refs), asserting that "looked at again" really happens — one read on open, another on a return, a burst of returns read once, switching the tab away and back counting too — and, after a re-read, **which files get ticked**: the newcomers, never a file the user unticked, and no override of somebody else's choice on an index that is not empty. No other suite runs effects, so they cannot see this class of bug |
 | `test/e2e.mjs` | real git through the real handler and route layers: ticking really writes the index (read back with `git status`), commit, push to a local bare remote, a rejected push, discarding one file / everything / a rename / a staged delete, conflict refusal, trash add-delete-clear, per-repository filtering, scan depth |
 | `test/check.mjs` | the manifest's targets all exist and reach the tarball, the patch layer is one row with no secret, the two copies of the wire contract agree, the dictionaries agree with `locale/*.json`, every `t('literal')` resolves, the README and workflow are present and say the right things |
 | `scripts/check-client-bundle.mjs` | reproduces client-modules' resolution: does the file `exports["./client"]` names actually exist |
@@ -280,6 +284,9 @@ judgement should be revisited; it is recorded in `docs/CONTRACT.md`.
   does not yet warn about that specifically.
 - Discarding an untracked file deletes it outright (not into the OS recycle bin). That is the agreed design: the
   plugin's own trash receives it, and with "delete for good" unticked its content is still readable there.
+- "Open with" starts the program on the **host**, so a remote client (a phone, a second machine) sees the window on
+  the machine that holds the repository rather than on the screen in front of them. It also only reaches files
+  **inside the repository**: a trash entry's diff and an already-deleted file have nothing on disk to hand over.
 
 ## Publishing (maintainers)
 
